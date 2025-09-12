@@ -1,0 +1,61 @@
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000',
+  timeout: 15000,
+});
+
+// simple UUID for headers
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+// Request interceptors: JWT + idempotency + correlation
+api.interceptors.request.use((config) => {
+  const raw = localStorage.getItem('auth:user');
+  const auth = raw ? JSON.parse(raw) : null;
+  if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`;
+
+  const method = (config.method || 'get').toLowerCase();
+  if (['post','put','patch','delete'].includes(method)) {
+    config.headers['Idempotency-Key'] = uuid();
+  }
+  config.headers['X-Correlation-Id'] = uuid();
+  return config;
+});
+
+// Endpoints
+export const AuthAPI = {
+  login: (email, password) => api.post('/auth/login', { email, password }),
+  register: (payload) => api.post('/auth/register', payload),
+};
+
+export const DonationAPI = {
+  createDonation: (payload) => api.post('/donations', payload),
+  listRecent: ({ limit = 10 } = {}) => api.get('/donations', { params: { limit } }),
+};
+
+export const InventoryAPI = {
+  list: (params) => api.get('/inventory', { params }),
+  getNearingExpiry: () => api.get('/inventory/nearing-expiry'),
+};
+
+export const BookingAPI = {
+  create: (payload) => api.post('/bookings', payload),
+  myBookings: () => api.get('/bookings/me'),
+  availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),
+};
+
+export const PickupAPI = {
+  receipt: (pickupId) => api.get(`/pickups/${pickupId}/receipt`),
+};
+
+export const RecommendationsAPI = {
+  mine: (locationId) => api.get('/recommendations/me', { params: { locationId } }),
+};
+
+export default api;
