@@ -1,32 +1,42 @@
-import UseFetchData from '../hooks/useFetchData';
-import { InventoryAPI } from '../services/api';
-import ItemCard from '../components/ItemCard';
-
 export default function Home() {
-  const { data, loading } = UseFetchData(() => InventoryAPI.getNearingExpiry(), []);
-
   return (
-    <div className="d-grid gap-3">
+    <div className="d-grid gap-4">
+      {/* Welcome Hero Section */}
       <div className="card shadow-sm">
-        <div className="card-body">
-          <h2 className="h4 mb-1">Welcome to the Community Fridge Network</h2>
-          <p className="text-muted mb-0">
-            Reduce food waste. Support households. Book pickups and donate.
+        <div className="card-body text-center">
+          <h1 className="h3 mb-3">Welcome to the Community Fridge Network</h1>
+          <p className="text-muted">
+            Together, we can reduce food waste and support families in need.
+          </p>
+          <p>
+            Donate surplus food, book pickup slots, and help create a sustainable future.
           </p>
         </div>
       </div>
 
-      <section>
-        <div className="d-flex justify-content-between align-items-center mb-2">
-          <h3 className="h5 mb-0">Nearing Expiry</h3>
-          {loading && <span className="text-muted small">Loading…</span>}
+      {/* About Section */}
+      <section className="card shadow-sm">
+        <div className="card-body">
+          <h2 className="h5">How It Works</h2>
+          <ul className="list-unstyled mt-3">
+            <li>🥕 <strong>Donors</strong> contribute surplus food.</li>
+            <li>🏠 <strong>Households</strong> can book pickups from community fridges.</li>
+            <li>🤝 <strong>Volunteers</strong> help with distribution and logistics.</li>
+          </ul>
         </div>
-        <div className="row g-3">
-          {(data?.items || []).map((it) => (
-            <div key={it.item_id} className="col-md-6">
-              <ItemCard name={it.name} category={it.category} qty={it.qty} expiry={it.expiry_date} />
-            </div>
-          ))}
+      </section>
+
+      {/* Call to Action */}
+      <section className="card shadow-sm bg-light">
+        <div className="card-body text-center">
+          <h2 className="h5 mb-3">Get Involved</h2>
+          <p className="text-muted">
+            Join us in building a sustainable, waste-free community.
+          </p>
+          <div className="d-flex justify-content-center gap-3">
+            <a href="/login" className="btn btn-primary">Donate Food</a>
+            <a href="/register" className="btn btn-outline-secondary">Sign Up</a>
+          </div>
         </div>
       </section>
     </div>
