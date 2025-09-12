@@ -1,9 +1,9 @@
-import useApi from '../hooks/useApi';
+import UseFetchData from '../hooks/useFetchData';
 import { DonationAPI, InventoryAPI } from '../services/api';
 
 export default function Dashboard() {
-  const recent = useApi(() => DonationAPI.listRecent({ limit: 5 }), []);
-  const stock  = useApi(() => InventoryAPI.list({ inStockOnly: true }), []);
+  const recent = UseFetchData(() => DonationAPI.listRecent({ limit: 5 }), []);
+  const stock  = UseFetchData(() => InventoryAPI.list({ inStockOnly: true }), []);
 
   return (
     <div className="d-grid gap-4">

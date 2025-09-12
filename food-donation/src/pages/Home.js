@@ -1,9 +1,9 @@
-import useApi from '../hooks/useApi';
+import UseFetchData from '../hooks/useFetchData';
 import { InventoryAPI } from '../services/api';
 import ItemCard from '../components/ItemCard';
 
 export default function Home() {
-  const { data, loading } = useApi(() => InventoryAPI.getNearingExpiry(), []);
+  const { data, loading } = UseFetchData(() => InventoryAPI.getNearingExpiry(), []);
 
   return (
     <div className="d-grid gap-3">

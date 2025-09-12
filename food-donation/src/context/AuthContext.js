@@ -19,8 +19,17 @@ export function AuthProvider({ children }) {
     setUser(null);
     localStorage.removeItem('auth:user');
   };
-
-  const value = useMemo(() => ({ user, login, logout }), [user]);
+  const loginDemo = () => {
+    const demo = {
+      id: 'demo-user',
+      email: 'demo@example.org',
+      role: 'household',   // or 'admin' / 'volunteer' if you want to test those routes
+      token: 'demo-token'
+    };
+    setUser(demo);
+    localStorage.setItem('auth:user', JSON.stringify(demo));
+  };
+  const value = useMemo(() => ({ user, login, logout, loginDemo }), [user]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

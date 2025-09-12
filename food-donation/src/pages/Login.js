@@ -8,7 +8,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const navigate = useNavigate();
-  const { login } = useAuth();
+  //TODO: remove login demo once done testing
+  const { login, loginDemo } = useAuth();
 
   const submit = async (e) => {
     e.preventDefault();
@@ -45,6 +46,13 @@ export default function Login() {
             <div className="mt-3 small">
               No account? <Link to="/register">Register</Link>
             </div>
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => { loginDemo(); navigate('/profile'); }}
+            >
+              Continue as Demo
+            </button>
           </div>
         </div>
       </div>
