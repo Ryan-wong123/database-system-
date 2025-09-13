@@ -14,14 +14,40 @@ export default function Navbar() {
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             {user && (
               <>
-                <li className="nav-item"><NavLink className="nav-link" to="/donate">Donate</NavLink></li>
-                <li className="nav-item"><NavLink className="nav-link" to="/inventory">Inventory</NavLink></li>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/">Home</NavLink>
+                </li>
+
+                {/* Donor links */}
+                {(user.role === 'donor' || user.role === 'admin') && (
+                  <li className="nav-item">
+                    <NavLink className="nav-link" to="/donate">Donate</NavLink>
+                  </li>
+                )}
+
+                {/* Donee links */}
                 {user.role === 'household' && (
-                  <li className="nav-item"><NavLink className="nav-link" to="/booking">Booking</NavLink></li>
+                  <li className="nav-item">
+                    <NavLink className="nav-link" to="/booking">Booking</NavLink>
+                  </li>
                 )}
+
+                {/* Admin links */}
                 {user.role === 'admin' && (
-                  <li className="nav-item"><NavLink className="nav-link" to="/admin">Admin</NavLink></li>
+                  <>
+                    <li className="nav-item">
+                      <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink className="nav-link" to="/dashboard">Dashboard</NavLink>
+                    </li>
+                  </>
                 )}
+
+                {/* Common */}
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/profile">Profile</NavLink>
+                </li>
               </>
             )}
           </ul>

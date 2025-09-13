@@ -46,13 +46,35 @@ export default function Login() {
             <div className="mt-3 small">
               No account? <Link to="/register">Register</Link>
             </div>
-            <button
-              type="button"
-              className="btn btn-outline-secondary"
-              onClick={() => { loginDemo(); navigate('/profile'); }}
-            >
-              Continue as Demo
-            </button>
+            <div className="mt-3 d-grid gap-2">
+            <div className="text-muted small">Quick Demo:</div>
+            <div className="d-flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => loginDemo('donee')}
+                title="Donee (Household) – see request/booking features"
+              >
+                Demo: Donee
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => loginDemo('donor')}
+                title="Donor – see donation features"
+              >
+                Demo: Donor
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => loginDemo('admin')}
+                title="Admin – see admin dashboard & inventory"
+              >
+                Demo: Admin
+              </button>
+            </div>
+          </div>
           </div>
         </div>
       </div>

@@ -24,8 +24,28 @@ export default function App() {
           // Logged-in: full app
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/donate" element={<Donate />} />
-            <Route path="/inventory" element={<Inventory />} />
+
+            {/* Donor/Admin only */}
+            <Route
+              path="/donate"
+              element={
+                <ProtectedRoute roles={['donor', 'admin']}>
+                  <Donate />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin only */}
+            <Route
+              path="/inventory"
+              element={
+                <ProtectedRoute roles={['admin']}>
+                  <Inventory />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Donee (household) only */}
             <Route
               path="/booking"
               element={
@@ -34,14 +54,18 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+
+            {/* Any authenticated role listed below */}
             <Route
               path="/profile"
               element={
-                <ProtectedRoute roles={['household', 'admin', 'volunteer']}>
+                <ProtectedRoute roles={['household', 'admin', 'volunteer', 'donor']}>
                   <Profile />
                 </ProtectedRoute>
               }
             />
+
+            {/* Admin dashboard */}
             <Route
               path="/admin"
               element={
@@ -50,14 +74,14 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         ) : (
           // Logged-out: Home only (plus optional login/register)
           <Routes>
             <Route path="/" element={<Home />} />
-            {/* If you want to allow login/register, keep these two lines.
-                If you truly want ONLY Home, remove both lines. */}
+            {/* Keep these if you want public access to auth screens */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<Navigate to="/" replace />} />
