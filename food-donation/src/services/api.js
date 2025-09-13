@@ -37,7 +37,9 @@ export const AuthAPI = {
 export const DonationAPI = {
   createDonation: (payload) => api.post('/donations', payload),
   listRecent: ({ limit = 10 } = {}) => api.get('/donations', { params: { limit } }),
+  myDonations: () => api.get('/donations/me'), // added
 };
+
 
 export const InventoryAPI = {
   list: (params) => api.get('/inventory', { params }),

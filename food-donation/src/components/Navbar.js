@@ -9,49 +9,72 @@ export default function Navbar() {
   return (
     <nav className="navbar navbar-expand-lg navbar-light bg-light border-bottom">
       <div className="container">
+        {/* Logo */}
         <Link className="navbar-brand fw-bold" to="/">Food Donation</Link>
-        <div className="collapse navbar-collapse">
+
+        <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span className="navbar-toggler-icon"></span>
+        </button>
+
+        <div className="collapse navbar-collapse" id="navbarNav">
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             {user && (
               <>
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/">Home</NavLink>
+                {/* Donate dropdown */}
+                <li className="nav-item dropdown">
+                  <a
+                    className="nav-link dropdown-toggle"
+                    href="#"
+                    id="donateDropdown"
+                    role="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                  >
+                    Donate
+                  </a>
+                  <ul className="dropdown-menu" aria-labelledby="donateDropdown">
+                    <li>
+                      <NavLink className="dropdown-item" to="/donate">Donate Food</NavLink>
+                    </li>
+                    <li>
+                      <NavLink className="dropdown-item" to="/history">Donation History</NavLink>
+                    </li>
+                  </ul>
                 </li>
 
-                {/* Donor links */}
-                {(user.role === 'donor' || user.role === 'admin') && (
+                {/* Inventory link (admin only) */}
+                {user.role === 'admin' && (
                   <li className="nav-item">
-                    <NavLink className="nav-link" to="/donate">Donate</NavLink>
+                    <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
                   </li>
                 )}
 
-                {/* Donee links */}
+                {/* Booking link (household only) */}
                 {user.role === 'household' && (
                   <li className="nav-item">
                     <NavLink className="nav-link" to="/booking">Booking</NavLink>
                   </li>
                 )}
 
-                {/* Admin links */}
+                {/* Admin dashboard link */}
                 {user.role === 'admin' && (
-                  <>
-                    <li className="nav-item">
-                      <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
-                    </li>
-                    <li className="nav-item">
-                      <NavLink className="nav-link" to="/dashboard">Dashboard</NavLink>
-                    </li>
-                  </>
+                  <li className="nav-item">
+                    <NavLink className="nav-link" to="/admin">Admin</NavLink>
+                  </li>
                 )}
 
-                {/* Common */}
+                {/* About & Contact */}
                 <li className="nav-item">
-                  <NavLink className="nav-link" to="/profile">Profile</NavLink>
+                  <NavLink className="nav-link" to="/about">About Us</NavLink>
+                </li>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/contact">Contact Us</NavLink>
                 </li>
               </>
             )}
           </ul>
 
+          {/* Auth buttons */}
           <div className="d-flex">
             {user ? (
               <>
@@ -61,7 +84,6 @@ export default function Navbar() {
                 </button>
               </>
             ) : (
-              // If you want no Login/Register at all, remove these two buttons
               <>
                 <NavLink className="btn btn-outline-primary me-2" to="/login">Login</NavLink>
                 <NavLink className="btn btn-primary" to="/register">Sign Up</NavLink>

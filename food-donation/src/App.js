@@ -1,4 +1,3 @@
-// src/App.js
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
@@ -6,6 +5,9 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Donate from './pages/Donate';
 import Inventory from './pages/Inventory';
+import AboutUs from './pages/AboutUs';
+import ContactUs from './pages/ContactUs';
+import DonationHistory from './pages/DonationHistory';
 import Booking from './pages/Booking';
 import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
@@ -21,7 +23,6 @@ export default function App() {
       <Navbar />
       <main className="container my-4 flex-grow-1">
         {user ? (
-          // Logged-in: full app
           <Routes>
             <Route path="/" element={<Home />} />
 
@@ -55,7 +56,7 @@ export default function App() {
               }
             />
 
-            {/* Any authenticated role listed below */}
+            {/* Any authenticated user */}
             <Route
               path="/profile"
               element={
@@ -75,13 +76,17 @@ export default function App() {
               }
             />
 
+            {/* Public to logged-in users */}
+            <Route path="/history" element={<DonationHistory />} />
+            <Route path="/about" element={<AboutUs />} />
+            <Route path="/contact" element={<ContactUs />} />
+
+            {/* Catch all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         ) : (
-          // Logged-out: Home only (plus optional login/register)
           <Routes>
             <Route path="/" element={<Home />} />
-            {/* Keep these if you want public access to auth screens */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<Navigate to="/" replace />} />
