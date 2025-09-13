@@ -50,7 +50,7 @@ export default function App() {
             <Route
               path="/booking"
               element={
-                <ProtectedRoute roles={['household']}>
+                <ProtectedRoute roles={['donee']}>
                   <Booking />
                 </ProtectedRoute>
               }
@@ -60,7 +60,7 @@ export default function App() {
             <Route
               path="/profile"
               element={
-                <ProtectedRoute roles={['household', 'admin', 'volunteer', 'donor']}>
+                <ProtectedRoute roles={['admin', 'donee', 'donor']}>
                   <Profile />
                 </ProtectedRoute>
               }

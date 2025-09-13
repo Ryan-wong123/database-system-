@@ -12,7 +12,15 @@ export default function Navbar() {
         {/* Logo */}
         <Link className="navbar-brand fw-bold" to="/">Food Donation</Link>
 
-        <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <button
+          className="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
           <span className="navbar-toggler-icon"></span>
         </button>
 
@@ -20,50 +28,38 @@ export default function Navbar() {
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             {user && (
               <>
-                {/* Donate dropdown */}
-                <li className="nav-item dropdown">
-                  <a
-                    className="nav-link dropdown-toggle"
-                    href="#"
-                    id="donateDropdown"
-                    role="button"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false"
-                  >
-                    Donate
-                  </a>
-                  <ul className="dropdown-menu" aria-labelledby="donateDropdown">
-                    <li>
-                      <NavLink className="dropdown-item" to="/donate">Donate Food</NavLink>
+                {/* Donor/Admin links */}
+                {(user.role === 'donor' || user.role === 'admin') && (
+                  <>
+                    <li className="nav-item">
+                      <NavLink className="nav-link" to="/donate">Donate Food</NavLink>
                     </li>
-                    <li>
-                      <NavLink className="dropdown-item" to="/history">Donation History</NavLink>
+                    <li className="nav-item">
+                      <NavLink className="nav-link" to="/history">Donation History</NavLink>
                     </li>
-                  </ul>
-                </li>
-
-                {/* Inventory link (admin only) */}
-                {user.role === 'admin' && (
-                  <li className="nav-item">
-                    <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
-                  </li>
+                  </>
                 )}
 
-                {/* Booking link (household only) */}
-                {user.role === 'household' && (
+                {/* Donee (household) link */}
+                {user.role === 'donee' && (
                   <li className="nav-item">
                     <NavLink className="nav-link" to="/booking">Booking</NavLink>
                   </li>
                 )}
 
-                {/* Admin dashboard link */}
+                {/* Admin links */}
                 {user.role === 'admin' && (
-                  <li className="nav-item">
-                    <NavLink className="nav-link" to="/admin">Admin</NavLink>
-                  </li>
+                  <>
+                    <li className="nav-item">
+                      <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink className="nav-link" to="/admin">Admin</NavLink>
+                    </li>
+                  </>
                 )}
 
-                {/* About & Contact */}
+                {/* Common links */}
                 <li className="nav-item">
                   <NavLink className="nav-link" to="/about">About Us</NavLink>
                 </li>
@@ -78,15 +74,33 @@ export default function Navbar() {
           <div className="d-flex">
             {user ? (
               <>
-                <NavLink className="btn btn-outline-secondary me-2" to="/profile">Profile</NavLink>
-                <button className="btn btn-danger" onClick={() => { logout(); navigate('/'); }}>
+                <NavLink
+                  className="btn btn-outline-secondary me-2"
+                  to="/profile"
+                >
+                  Profile
+                </NavLink>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => {
+                    logout();
+                    navigate('/');
+                  }}
+                >
                   Logout
                 </button>
               </>
             ) : (
               <>
-                <NavLink className="btn btn-outline-primary me-2" to="/login">Login</NavLink>
-                <NavLink className="btn btn-primary" to="/register">Sign Up</NavLink>
+                <NavLink
+                  className="btn btn-outline-primary me-2"
+                  to="/login"
+                >
+                  Login
+                </NavLink>
+                <NavLink className="btn btn-primary" to="/register">
+                  Sign Up
+                </NavLink>
               </>
             )}
           </div>
