@@ -4,17 +4,67 @@ import { InventoryAPI } from '../services/api';
 import ItemCard from '../components/ItemCard';
 
 export default function Inventory() {
+  // Try fetching from API
   const { data, loading } = UseFetchData(() => InventoryAPI.list(), []);
-  const [search, setSearch] = useState(''); // <-- search state
+  const [search, setSearch] = useState('');
+
+  // ------------------------
+  // Fake data for demo
+  // ------------------------
+  const fakeData = {
+    items: [
+      {
+        item_id: 1,
+        name: 'Rice (5kg bag)',
+        category: 'Grain',
+        qty: 20,
+        expiry_date: '2025-09-30',
+        location_id: 'L1',
+        location_name: 'Tampines Community Fridge',
+      },
+      {
+        item_id: 2,
+        name: 'Fresh Milk (1L)',
+        category: 'Dairy',
+        qty: 15,
+        expiry_date: '2025-09-18',
+        location_id: 'L2',
+        location_name: 'Jurong West Community Fridge',
+      },
+      {
+        item_id: 3,
+        name: 'Canned Beans',
+        category: 'Canned Food',
+        qty: 40,
+        expiry_date: '2026-01-15',
+        location_id: 'L1',
+        location_name: 'Tampines Community Fridge',
+      },
+      {
+        item_id: 4,
+        name: 'Apples',
+        category: 'Fruit',
+        qty: 12,
+        expiry_date: '2025-09-16',
+        location_id: 'L3',
+        location_name: 'Hougang Community Fridge',
+      },
+    ],
+  };
+
+  // Use API response if it has items, otherwise fall back to fake data
+  const itemsData = data?.items?.length ? data : fakeData;
 
   // Filter items based on search query
   const filteredItems = useMemo(() => {
-    if (!data?.items) return [];
-    return data.items.filter((it) =>
-      it.name.toLowerCase().includes(search.toLowerCase()) ||
-      it.category.toLowerCase().includes(search.toLowerCase())
+    if (!itemsData?.items) return [];
+    return itemsData.items.filter(
+      (it) =>
+        it.name.toLowerCase().includes(search.toLowerCase()) ||
+        it.category.toLowerCase().includes(search.toLowerCase()) ||
+        it.location_name?.toLowerCase().includes(search.toLowerCase())
     );
-  }, [data, search]);
+  }, [itemsData, search]);
 
   return (
     <div className="d-grid gap-3">
@@ -28,7 +78,7 @@ export default function Inventory() {
         <input
           type="text"
           className="form-control"
-          placeholder="Search by name or category..."
+          placeholder="Search by name, category, or location..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -44,6 +94,9 @@ export default function Inventory() {
               qty={it.qty}
               expiry={it.expiry_date}
             />
+            <div className="small text-muted ms-1">
+              📍 {it.location_name}
+            </div>
           </div>
         ))}
         {filteredItems.length === 0 && !loading && (

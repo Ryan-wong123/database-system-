@@ -5,7 +5,6 @@ export default function DonationForm() {
   const [form, setForm] = useState({
     location_id: '',
     items: [{ item_id: '', qty: 1, expiry_date: '' }],
-    notes: ''
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -18,23 +17,52 @@ export default function DonationForm() {
     });
   };
 
-  const addItem = () => setForm((f) => ({
-    ...f,
-    items: [...f.items, { item_id: '', qty: 1, expiry_date: '' }]
-  }));
+  const addItem = () =>
+    setForm((f) => ({
+      ...f,
+      items: [...f.items, { item_id: '', qty: 1, expiry_date: '' }],
+    }));
 
-  const removeItem = (idx) => setForm((f) => ({
-    ...f,
-    items: f.items.filter((_, i) => i !== idx)
-  }));
+  const removeItem = (idx) =>
+    setForm((f) => ({
+      ...f,
+      items: f.items.filter((_, i) => i !== idx),
+    }));
+
+  const validate = () => {
+    if (!form.location_id) {
+      setMsg('Please select a location.');
+      return false;
+    }
+    if (form.items.length === 0) {
+      setMsg('Please add at least one item.');
+      return false;
+    }
+    for (let i = 0; i < form.items.length; i++) {
+      const it = form.items[i];
+      if (!String(it.item_id).trim()) {
+        setMsg(`Row ${i + 1}: Item ID is required.`);
+        return false;
+      }
+      const q = Number(it.qty);
+      if (!Number.isFinite(q) || q < 1) {
+        setMsg(`Row ${i + 1}: Quantity must be at least 1.`);
+        return false;
+      }
+    }
+    return true;
+  };
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setBusy(true); setMsg('');
+    setMsg('');
+    if (!validate()) return;
+
+    setBusy(true);
     try {
       await DonationAPI.createDonation(form);
       setMsg('Donation recorded! Thank you.');
-      setForm({ location_id: '', items: [{ item_id: '', qty: 1, expiry_date: '' }], notes: '' });
+      setForm({ location_id: '', items: [{ item_id: '', qty: 1, expiry_date: '' }] });
     } catch {
       setMsg('Failed to submit donation.');
     } finally {
@@ -44,78 +72,97 @@ export default function DonationForm() {
 
   return (
     <form className="card p-4 shadow-sm" onSubmit={onSubmit}>
+      <h4 className="h5 mb-3">Record Donation</h4>
+
+      {/* Location dropdown */}
       <div className="mb-3">
         <label className="form-label">Location</label>
-        <input
-          type="text"
-          className="form-control"
+        <select
+          className="form-select"
           value={form.location_id}
-          onChange={(e) => setForm({ ...form, location_id: e.target.value })}
+          onChange={(e) => setForm((f) => ({ ...f, location_id: e.target.value }))}
           required
-        />
+        >
+          <option value="" disabled>
+            Select a location
+          </option>
+          <option value="bedok">Bedok</option>
+          <option value="jurong">Jurong</option>
+          <option value="tampines">Tampines</option>
+          <option value="hougang">Hougang</option>
+        </select>
       </div>
 
-      <div className="mb-3">
-        <h5>Items</h5>
-        {form.items.map((it, idx) => (
-          <div className="row g-2 mb-2" key={idx}>
-            <div className="col-md-5">
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Item ID"
-                value={it.item_id}
-                onChange={(e) => updateItem(idx, 'item_id', e.target.value)}
-                required
-              />
-            </div>
-            <div className="col-md-2">
-              <input
-                type="number"
-                className="form-control"
-                min="1"
-                value={it.qty}
-                onChange={(e) => updateItem(idx, 'qty', Number(e.target.value))}
-                required
-              />
-            </div>
-            <div className="col-md-3">
-              <input
-                type="date"
-                className="form-control"
-                value={it.expiry_date}
-                onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)}
-              />
-            </div>
-            <div className="col-md-2">
-              <button
-                type="button"
-                className="btn btn-outline-danger w-100"
-                onClick={() => removeItem(idx)}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        ))}
+      {/* Items table */}
+      <div className="table-responsive mb-3">
+        <table className="table align-middle">
+          <thead>
+            <tr>
+              <th style={{ minWidth: 160 }}>Food Name</th>
+              <th style={{ width: 140 }}>Quantity</th>
+              <th style={{ width: 200 }}>Expiration Date</th>
+              <th style={{ width: 120 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {form.items.map((it, idx) => (
+              <tr key={idx}>
+                <td>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Bread"
+                    value={it.item_id}
+                    onChange={(e) => updateItem(idx, 'item_id', e.target.value)}
+                    required
+                  />
+                </td>
+                <td>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="1"
+                    value={it.qty}
+                    onChange={(e) =>
+                      updateItem(idx, 'qty', Math.max(1, Number(e.target.value)))
+                    }
+                    required
+                  />
+                </td>
+                <td>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={it.expiry_date}
+                    onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)}
+                  />
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger w-100"
+                    onClick={() => removeItem(idx)}
+                    disabled={form.items.length === 1}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="d-flex gap-2 mb-3">
         <button type="button" className="btn btn-outline-secondary" onClick={addItem}>
           Add Item
         </button>
       </div>
 
-      <div className="mb-3">
-        <label className="form-label">Notes</label>
-        <textarea
-          className="form-control"
-          rows="3"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        />
-      </div>
-
       <button className="btn btn-primary" disabled={busy}>
         {busy ? 'Submitting…' : 'Submit Donation'}
       </button>
+
       {msg && <div className="mt-2 text-muted">{msg}</div>}
     </form>
   );
