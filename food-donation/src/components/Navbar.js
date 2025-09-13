@@ -58,14 +58,6 @@ export default function Navbar() {
                     </li>
                   </>
                 )}
-
-                {/* Common links */}
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/about">About Us</NavLink>
-                </li>
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/contact">Contact Us</NavLink>
-                </li>
               </>
             )}
           </ul>
@@ -74,10 +66,7 @@ export default function Navbar() {
           <div className="d-flex">
             {user ? (
               <>
-                <NavLink
-                  className="btn btn-outline-secondary me-2"
-                  to="/profile"
-                >
+                <NavLink className="btn btn-outline-secondary me-2" to="/profile">
                   Profile
                 </NavLink>
                 <button
@@ -92,10 +81,7 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <NavLink
-                  className="btn btn-outline-primary me-2"
-                  to="/login"
-                >
+                <NavLink className="btn btn-outline-primary me-2" to="/login">
                   Login
                 </NavLink>
                 <NavLink className="btn btn-primary" to="/register">
