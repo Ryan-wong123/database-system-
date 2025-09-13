@@ -17,6 +17,9 @@ export default function Navbar() {
             <li className="nav-item">
               <NavLink className="nav-link" to="/history">Donation History</NavLink>
             </li>
+            <li className="nav-item">
+              <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
+            </li>
           </>
         );
       case 'donor':
@@ -27,6 +30,9 @@ export default function Navbar() {
             </li>
             <li className="nav-item">
               <NavLink className="nav-link" to="/history">Donation History</NavLink>
+            </li>
+            <li className="nav-item">
+              <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
             </li>
           </>
         );

@@ -40,7 +40,7 @@ export default function App() {
             <Route
               path="/inventory"
               element={
-                <ProtectedRoute roles={['admin']}>
+                <ProtectedRoute roles={['admin', 'donee', 'donor']}>
                   <Inventory />
                 </ProtectedRoute>
               }
