@@ -11,10 +11,13 @@
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
     "cors": "^2.8.5",
+    "mongoose": "^8.18.1",
+    "pg": "^8.16.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.0",
     "react-scripts": "5.0.1",
+    "redis": "^5.8.2",
     "tunnel-ssh": "^5.2.0",
     "web-vitals": "^2.1.4"
   },

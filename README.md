@@ -15,6 +15,13 @@ cd backend
 npm install
 ```
 
+note install missing packages for database
+
+```
+npm install mongoose pg redis
+```
+
+
 In VS Code, Open 2 terminal
 ```
 cd backend
