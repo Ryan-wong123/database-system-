@@ -1,59 +1,29 @@
-import { useState, useMemo } from 'react';
-import UseFetchData from '../hooks/useFetchData';
-import { InventoryAPI } from '../services/api';
+import { useState, useMemo, useEffect } from 'react';
 import ItemCard from '../components/ItemCard';
 
 export default function Inventory() {
-  // Try fetching from API
-  const { data, loading } = UseFetchData(() => InventoryAPI.list(), []);
+  const [itemsData, setItemsData] = useState({ items: [] });
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   // ------------------------
-  // Fake data for demo
+  // Fetch inventory from backend
   // ------------------------
-  const fakeData = {
-    items: [
-      {
-        item_id: 1,
-        name: 'Rice (5kg bag)',
-        category: 'Grain',
-        qty: 20,
-        expiry_date: '2025-09-30',
-        location_id: 'L1',
-        location_name: 'Tampines Community Fridge',
-      },
-      {
-        item_id: 2,
-        name: 'Fresh Milk (1L)',
-        category: 'Dairy',
-        qty: 15,
-        expiry_date: '2025-09-18',
-        location_id: 'L2',
-        location_name: 'Jurong West Community Fridge',
-      },
-      {
-        item_id: 3,
-        name: 'Canned Beans',
-        category: 'Canned Food',
-        qty: 40,
-        expiry_date: '2026-01-15',
-        location_id: 'L1',
-        location_name: 'Tampines Community Fridge',
-      },
-      {
-        item_id: 4,
-        name: 'Apples',
-        category: 'Fruit',
-        qty: 12,
-        expiry_date: '2025-09-16',
-        location_id: 'L3',
-        location_name: 'Hougang Community Fridge',
-      },
-    ],
-  };
-
-  // Use API response if it has items, otherwise fall back to fake data
-  const itemsData = data?.items?.length ? data : fakeData;
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("http://localhost:5000/inventory");
+        const data = await res.json();
+        setItemsData(data);
+      } catch (err) {
+        console.error("Error fetching inventory:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInventory();
+  }, []);
 
   // Filter items based on search query (name/category/location)
   const filteredItems = useMemo(() => {
@@ -81,7 +51,6 @@ export default function Inventory() {
       }
       map.get(key).items.push(it);
     }
-    // Return sorted by location name (optional)
     return Array.from(map.values()).sort((a, b) =>
       a.location_name.localeCompare(b.location_name)
     );
