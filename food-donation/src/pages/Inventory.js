@@ -13,7 +13,7 @@ export default function Inventory() {
     const fetchInventory = async () => {
       try {
         setLoading(true);
-        const res = await fetch("http://localhost:5000/inventory");
+        const res = await fetch("http://localhost:8000/inventory");
         const data = await res.json();
         setItemsData(data);
       } catch (err) {

@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const { Pool } = require("pg");
 const redis = require("redis");
 const cors = require("cors");
+const authRoutes = require("./routes/auth");
 require("dotenv").config();
 
 const app = express();
@@ -13,7 +14,7 @@ const PORT = process.env.PORT || 5000;
 // -----------------------
 app.use(cors());
 app.use(express.json());
-
+app.use("/auth", authRoutes);
 // -----------------------
 // MongoDB Connection
 // -----------------------

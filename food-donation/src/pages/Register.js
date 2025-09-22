@@ -4,18 +4,21 @@ import { AuthAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
-  const [form, setForm] = useState({ email: '', password: '', name: '', role: 'donor' });
+  const [form, setForm] = useState({ 
+    name: '', 
+    email: '', 
+    password: '', 
+    role: 'donor' 
+  });
+  const [donee, setDonee] = useState({
+    household_head_name: '',
+    income_group: 'low',
+    diet_flags_text: ''
+  });
+
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
-
-  // Extra fields for Donee
-  const [donee, setDonee] = useState({
-    head_name: '',
-    income_group: 'low',           // low | medium | high
-    custom_income_group: '',       // optional free-text override
-    diet_flags_text: ''            // comma-separated input -> array
-  });
 
   const isDonee = form.role === 'donee';
 
@@ -23,8 +26,12 @@ export default function Register() {
     e.preventDefault();
     setError('');
 
-    // Build payload
-    const payload = { ...form };
+    let payload = {
+      name: form.name,
+      email: form.email,
+      password: form.password,
+      role: form.role
+    };
 
     if (isDonee) {
       const dietFlags = donee.diet_flags_text
@@ -32,19 +39,20 @@ export default function Register() {
         .map(s => s.trim())
         .filter(Boolean);
 
-      payload.donee_profile = {
-        head_name: donee.head_name,
-        income_group: donee.custom_income_group?.trim() || donee.income_group,
+      payload = {
+        ...payload,
+        household_head_name: donee.household_head_name,
+        income_group: donee.income_group,
         diet_flags: dietFlags
       };
     }
 
     try {
       const { data } = await AuthAPI.register(payload);
-      // expect backend to return { user_id, email, role, token }
       login({ id: data.user_id, email: data.email, role: data.role, token: data.token });
       navigate('/');
-    } catch {
+    } catch (err) {
+      console.error("Register error:", err);
       setError('Failed to register');
     }
   };
@@ -58,7 +66,7 @@ export default function Register() {
             {error && <div className="alert alert-danger py-2">{error}</div>}
 
             <form className="d-grid gap-3" onSubmit={submit}>
-              {/* Basic account info */}
+              {/* Basic info */}
               <div>
                 <label className="form-label">Name</label>
                 <input
@@ -104,37 +112,35 @@ export default function Register() {
                 </select>
               </div>
 
-              {/* Conditional fields for Donee */}
+              {/* Conditional: only show for donee */}
               {isDonee && (
                 <div className="border rounded p-3 bg-light">
-                  <h2 className="h6 mb-3">Donee Details</h2>
+                  <h2 className="h6 mb-3">Household Details</h2>
 
                   <div className="mb-3">
                     <label className="form-label">Head of Household Name</label>
                     <input
                       className="form-control"
-                      value={donee.head_name}
-                      onChange={(e) => setDonee({ ...donee, head_name: e.target.value })}
+                      value={donee.household_head_name}
+                      onChange={(e) => setDonee({ ...donee, household_head_name: e.target.value })}
                       required
                     />
                   </div>
 
-                  <div className="row g-2">
-                    <div className="col-md-12">
-                      <label className="form-label">Income Group</label>
-                      <select
-                        className="form-select"
-                        value={donee.income_group}
-                        onChange={(e) => setDonee({ ...donee, income_group: e.target.value })}
-                      >
-                        <option value="low">low</option>
-                        <option value="medium">medium</option>
-                        <option value="high">high</option>
-                      </select>
-                    </div>
+                  <div className="mb-3">
+                    <label className="form-label">Income Group</label>
+                    <select
+                      className="form-select"
+                      value={donee.income_group}
+                      onChange={(e) => setDonee({ ...donee, income_group: e.target.value })}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
                   </div>
 
-                  <div className="mt-3">
+                  <div className="mb-3">
                     <label className="form-label">Diet Flags</label>
                     <input
                       className="form-control"
