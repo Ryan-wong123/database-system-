@@ -26,6 +26,10 @@ cd backend
 ssh -L 5433:localhost:5432 db-dev@35.212.169.134
 ```
 
+```
+ran1doms2tring3@lol
+```
+
 Second terminal run
 ```
 cd food-donation
@@ -43,4 +47,9 @@ cd food-donation
 ```
 ```
 npm start
+```
+
+run this for quick 
+```
+powershell -ExecutionPolicy Bypass -File .\Start-FoodDonation.ps1
 ```
