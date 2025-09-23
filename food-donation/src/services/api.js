@@ -50,14 +50,15 @@ export const BookingAPI = {
   create: (payload) => api.post('/bookings', payload),
   myBookings: () => api.get('/bookings/me'),
   availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),
+  adminList: (params) => api.get('/bookings/admin', { params }), 
+  updateStatus: (bookingId, payload) => api.patch(`/bookings/${bookingId}/status`, payload),
 };
 
-export const PickupAPI = {
-  receipt: (pickupId) => api.get(`/pickups/${pickupId}/receipt`),
+export const LocationsAPI = {
+  list: () => api.get('/locations'),
+  updateItem: (itemId, payload) => api.patch(`/items/${itemId}`, payload), // {name?, category?}
+  updateLot: (lotId, payload) => api.patch(`/inventory/lots/${lotId}`, payload), // {location_id?, qty?, expiry_date?}
 };
 
-export const RecommendationsAPI = {
-  mine: (locationId) => api.get('/recommendations/me', { params: { locationId } }),
-};
 
 export default api;

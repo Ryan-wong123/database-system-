@@ -1,36 +1,22 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useState } from 'react';
+import UseFetchData from '../hooks/useFetchData';
+import { InventoryAPI } from '../services/api';
 import ItemCard from '../components/ItemCard';
 
 export default function Inventory() {
-  const [itemsData, setItemsData] = useState({ items: [] });
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  // ------------------------
-  // Fetch inventory from backend
-  // ------------------------
-  useEffect(() => {
-    const fetchInventory = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch("http://localhost:8000/inventory");
-        const data = await res.json();
-        setItemsData(data);
-      } catch (err) {
-        console.error("Error fetching inventory:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInventory();
-  }, []);
+  // Unified fetch via hook
+  const stock = UseFetchData(() => InventoryAPI.list({ inStockOnly: true }), []);
+
+  const itemsData = stock.data || { items: [] };
 
   // Filter items based on search query (name/category/location)
   const filteredItems = useMemo(() => {
-    if (!itemsData?.items) return [];
+    const list = Array.isArray(itemsData.items) ? itemsData.items : [];
     const q = search.trim().toLowerCase();
-    if (!q) return itemsData.items;
-    return itemsData.items.filter((it) =>
+    if (!q) return list;
+    return list.filter((it) =>
       [it.name, it.category, it.location_name]
         .filter(Boolean)
         .some((val) => String(val).toLowerCase().includes(q))
@@ -60,10 +46,10 @@ export default function Inventory() {
     <div className="d-grid gap-3">
       <div className="d-flex justify-content-between align-items-center">
         <h1 className="h4 mb-0">Inventory</h1>
-        {loading && <span className="text-muted small">Loading…</span>}
+        {stock.loading && <span className="text-muted small">Loading…</span>}
+        {stock.error && <span className="text-danger small">Failed to load.</span>}
       </div>
 
-      {/* Search Bar */}
       <div className="mb-3">
         <input
           type="text"
@@ -74,8 +60,7 @@ export default function Inventory() {
         />
       </div>
 
-      {/* Grouped Inventory by Location */}
-      {groupedByLocation.length === 0 && !loading && (
+      {groupedByLocation.length === 0 && !stock.loading && (
         <p className="text-muted">No items found.</p>
       )}
 

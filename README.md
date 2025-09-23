@@ -49,7 +49,95 @@ cd food-donation
 npm start
 ```
 
-run this for quick 
+run this to start server and webpage
 ```
 powershell -ExecutionPolicy Bypass -File .\Start-FoodDonation.ps1
 ```
+
+# Code Structure breakdown
+
+## Components
+
+### Footer
+Footer of the website for contact us and about us
+
+### Navbar
+Role-aware nav links and auth buttons.
+
+### Item card
+Re-usable card for display text
+
+## Context
+### AuthContext
+Front end user session management
+
+## Hooks
+### useFetchData
+boiler plate for loading data
+
+## Pages
+### About us
+About this website
+
+### Booking
+For Donee to book timing and food preferences
+
+### Contact us
+Contact info
+
+### Dashboard
+For admin to manage the bookings status and manage food properties(quantity, location, etc)
+
+### Donate
+For donor to donate food items
+
+### Donation History
+- For Donor to see what they have donate
+- For Donee to see what they have recieved
+- For Admin to see what both donor and donee have donated/recieved
+
+### Home
+Landing page
+
+### Inventory
+For Admin, Donor, Donee to see the different food items at different locations
+
+### Login
+User login
+
+### Profile
+profile of the user
+
+### Register
+User registration
+
+## Services
+### Api.js
+- **AuthAPI**
+  - `login`
+  - `register`
+
+- **DonationAPI**
+  - `createDonation`
+  - `listRecent`
+  - `myDonations`
+
+- **InventoryAPI**
+  - `list`
+  - `getNearingExpiry`
+
+- **BookingAPI**
+  - `create`
+  - `myBookings`
+  - `availability`
+  - `adminList`
+  - `updateStatus`
+
+- **LocationsAPI**
+  - `list`
+  - `updateItem`
+  - `updateLot`
+
+
+## App.js
+Main application component. Defines routes, layout (Navbar + Footer), and role-based access control using ProtectedRoute.
