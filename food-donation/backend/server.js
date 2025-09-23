@@ -12,7 +12,17 @@ const PORT = process.env.PORT || 5000;
 // -----------------------
 // Middleware
 // -----------------------
-app.use(cors());
+const corsOptions = {
+  origin: [
+    "http://localhost:8000",  // React dev server
+    "http://127.0.0.1:3000"
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use("/auth", authRoutes);
 // -----------------------
