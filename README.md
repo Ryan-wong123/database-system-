@@ -15,28 +15,32 @@ cd backend
 npm install
 ```
 
-note install missing packages for database
-
+open first terminal
 ```
-npm install mongoose pg redis
+cd food-donation
 ```
-
-
-In VS Code, Open 2 terminal
 ```
 cd backend
 ```
-
-First terminal run
 ```
 ssh -L 5433:localhost:5432 db-dev@35.212.169.134
 ```
 
 Second terminal run
 ```
+cd food-donation
+```
+```
+cd backend
+```
+```
 node server.js
 ```
-Project Start
+
+Third terminal run
+```
+cd food-donation
+```
 ```
 npm start
 ```
