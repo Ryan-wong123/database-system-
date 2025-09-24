@@ -25,7 +25,7 @@ cd backend
 ```
 ssh -L 5433:localhost:5432 db-dev@35.212.169.134
 ```
-
+ssh password:
 ```
 ran1doms2tring3@lol
 ```
