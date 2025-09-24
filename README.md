@@ -54,6 +54,11 @@ run this to start server and webpage
 powershell -ExecutionPolicy Bypass -File .\Start-FoodDonation.ps1
 ```
 
+check for blocking ports on 8000
+```
+netstat -ano | findstr :8000
+```
+
 # Code Structure breakdown
 
 ## Components
