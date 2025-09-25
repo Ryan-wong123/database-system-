@@ -71,4 +71,9 @@ export const DietaryAPI = {
 export const IncomeGroupAPI = {
   list: () => api.get('/income-groups'),
 };
+
+export const UnitsAPI = {
+  list: () => api.get('/units'),  // expects [{ id, name }]
+};
+
 export default api;

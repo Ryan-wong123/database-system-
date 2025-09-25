@@ -1,19 +1,20 @@
 import { useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { DonationAPI, LocationsAPI,CategoriesAPI, DietaryAPI } from '../services/api';
+import { DonationAPI, LocationsAPI, CategoriesAPI, DietaryAPI, UnitsAPI } from '../services/api';
 
 export default function Donate() {
   const [form, setForm] = useState({
     location_id: '',
-    items: [{ item_id: '', category_id: '', dietary_id: '', qty: 1, expiry_date: '' }],
+    items: [{ item_id: '', category_id: '', dietary_id: '', qty: 1, unit_id: '', expiry_date: '' }],
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  // Load locations via shared hook
+  // Load lists via shared hook
   const locations = UseFetchData(() => LocationsAPI.list(), []);
   const categories = UseFetchData(() => CategoriesAPI.list(), []);
   const dietaries = UseFetchData(() => DietaryAPI.list(), []);
+  const units = UseFetchData(() => UnitsAPI.list(), []);
 
   const updateItem = (idx, key, value) => {
     setForm((f) => {
@@ -26,7 +27,7 @@ export default function Donate() {
   const addItem = () =>
     setForm((f) => ({
       ...f,
-      items: [...f.items, { item_id: '', category_id: '', dietary_id: '', qty: 1, expiry_date: '' }],
+      items: [...f.items, { item_id: '', category_id: '', dietary_id: '', qty: 1, unit_id: '', expiry_date: '' }],
     }));
 
   const removeItem = (idx) =>
@@ -55,9 +56,9 @@ export default function Donate() {
         setMsg(`Row ${i + 1}: Quantity must be at least 1.`);
         return false;
       }
-
       if (!it.category_id) { setMsg(`Row ${i+1}: Category is required.`); return false; }
       if (!it.dietary_id) { setMsg(`Row ${i+1}: Dietary restriction is required.`); return false; }
+      if (!it.unit_id) { setMsg(`Row ${i+1}: Unit is required.`); return false; }
     }
     return true;
   };
@@ -71,7 +72,10 @@ export default function Donate() {
     try {
       await DonationAPI.createDonation(form);
       setMsg('Donation recorded! Thank you.');
-      setForm({ location_id: '', items: [{ item_id: '', category_id: '', dietary_id: '', qty: 1, expiry_date: '' }] });
+      setForm({
+        location_id: '',
+        items: [{ item_id: '', category_id: '', dietary_id: '', qty: 1, unit_id: '', expiry_date: '' }],
+      });
     } catch {
       setMsg('Failed to submit donation.');
     } finally {
@@ -82,7 +86,8 @@ export default function Donate() {
   const locationOptions = Array.isArray(locations.data) ? locations.data : [];
   const categoryOptions  = Array.isArray(categories.data) ? categories.data : [];
   const dietaryOptions   = Array.isArray(dietaries.data) ? dietaries.data : [];
-  
+  const unitOptions      = Array.isArray(units.data) ? units.data : [];
+
   return (
     <div className="d-grid gap-3">
       <h1 className="h4">Record a Donation</h1>
@@ -117,6 +122,7 @@ export default function Donate() {
                 <th style={{ minWidth: 180 }}>Category</th>
                 <th style={{ minWidth: 220 }}>Dietary Restrictions</th>
                 <th style={{ width: 140 }}>Quantity</th>
+                <th style={{ width: 160 }}>Units</th>
                 <th style={{ width: 200 }}>Expiration Date</th>
                 <th style={{ width: 120 }}></th>
               </tr>
@@ -147,7 +153,7 @@ export default function Donate() {
                       ))}
                     </select>
                     {categories.error && <div className="text-danger small mt-1">Failed to load categories.</div>}
-                    </td>
+                  </td>
                   <td>
                     <select
                       className="form-select"
@@ -170,7 +176,6 @@ export default function Donate() {
                       </div>
                     )}
                   </td>
-
                   <td>
                     <input
                       type="number"
@@ -180,6 +185,20 @@ export default function Donate() {
                       onChange={(e) => updateItem(idx, 'qty', Math.max(1, Number(e.target.value)))}
                       required
                     />
+                  </td>
+                  <td>
+                    <select
+                      className="form-select"
+                      value={it.unit_id}
+                      onChange={(e) => updateItem(idx, 'unit_id', e.target.value)}
+                      disabled={units.loading}
+                    >
+                      <option value="">{units.loading ? 'Loading…' : 'Select unit'}</option>
+                      {unitOptions.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                    {units.error && <div className="text-danger small mt-1">Failed to load units.</div>}
                   </td>
                   <td>
                     <input
