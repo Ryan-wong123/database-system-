@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { DonationAPI, LocationsAPI } from '../services/api';
+import { DonationAPI, LocationsAPI,CategoriesAPI, DietaryAPI } from '../services/api';
 
 export default function Donate() {
   const [form, setForm] = useState({
     location_id: '',
-    items: [{ item_id: '', qty: 1, expiry_date: '' }],
+    items: [{ item_id: '', category_id: '', dietary_id: '', qty: 1, expiry_date: '' }],
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
   // Load locations via shared hook
   const locations = UseFetchData(() => LocationsAPI.list(), []);
+  const categories = UseFetchData(() => CategoriesAPI.list(), []);
+  const dietaries = UseFetchData(() => DietaryAPI.list(), []);
 
   const updateItem = (idx, key, value) => {
     setForm((f) => {
@@ -24,7 +26,7 @@ export default function Donate() {
   const addItem = () =>
     setForm((f) => ({
       ...f,
-      items: [...f.items, { item_id: '', qty: 1, expiry_date: '' }],
+      items: [...f.items, { item_id: '', category_id: '', dietary_id: '', qty: 1, expiry_date: '' }],
     }));
 
   const removeItem = (idx) =>
@@ -53,6 +55,9 @@ export default function Donate() {
         setMsg(`Row ${i + 1}: Quantity must be at least 1.`);
         return false;
       }
+
+      if (!it.category_id) { setMsg(`Row ${i+1}: Category is required.`); return false; }
+      if (!it.dietary_id) { setMsg(`Row ${i+1}: Dietary restriction is required.`); return false; }
     }
     return true;
   };
@@ -66,7 +71,7 @@ export default function Donate() {
     try {
       await DonationAPI.createDonation(form);
       setMsg('Donation recorded! Thank you.');
-      setForm({ location_id: '', items: [{ item_id: '', qty: 1, expiry_date: '' }] });
+      setForm({ location_id: '', items: [{ item_id: '', category_id: '', dietary_id: '', qty: 1, expiry_date: '' }] });
     } catch {
       setMsg('Failed to submit donation.');
     } finally {
@@ -75,7 +80,9 @@ export default function Donate() {
   };
 
   const locationOptions = Array.isArray(locations.data) ? locations.data : [];
-
+  const categoryOptions  = Array.isArray(categories.data) ? categories.data : [];
+  const dietaryOptions   = Array.isArray(dietaries.data) ? dietaries.data : [];
+  
   return (
     <div className="d-grid gap-3">
       <h1 className="h4">Record a Donation</h1>
@@ -107,6 +114,8 @@ export default function Donate() {
             <thead>
               <tr>
                 <th style={{ minWidth: 160 }}>Food Name</th>
+                <th style={{ minWidth: 180 }}>Category</th>
+                <th style={{ minWidth: 220 }}>Dietary Restrictions</th>
                 <th style={{ width: 140 }}>Quantity</th>
                 <th style={{ width: 200 }}>Expiration Date</th>
                 <th style={{ width: 120 }}></th>
@@ -125,6 +134,43 @@ export default function Donate() {
                       required
                     />
                   </td>
+                  <td>
+                    <select
+                      className="form-select"
+                      value={it.category_id}
+                      onChange={(e) => updateItem(idx, 'category_id', e.target.value)}
+                      disabled={categories.loading}
+                    >
+                      <option value="">{categories.loading ? 'Loading…' : 'Select category'}</option>
+                      {categoryOptions.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    {categories.error && <div className="text-danger small mt-1">Failed to load categories.</div>}
+                    </td>
+                  <td>
+                    <select
+                      className="form-select"
+                      value={it.dietary_id}
+                      onChange={(e) => updateItem(idx, 'dietary_id', e.target.value)}
+                      disabled={dietaries.loading}
+                    >
+                      <option value="">
+                        {dietaries.loading ? 'Loading…' : 'Select dietary restriction'}
+                      </option>
+                      {dietaryOptions.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    {dietaries.error && (
+                      <div className="text-danger small mt-1">
+                        Failed to load dietary tags.
+                      </div>
+                    )}
+                  </td>
+
                   <td>
                     <input
                       type="number"

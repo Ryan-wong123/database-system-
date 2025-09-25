@@ -61,4 +61,12 @@ export const LocationsAPI = {
 };
 
 
+export const CategoriesAPI = {
+  list: () => api.get('/categories'),             
+};
+
+export const DietaryAPI = {
+  list: () => api.get('/dietary-restrictions'),    
+};
+
 export default api;
