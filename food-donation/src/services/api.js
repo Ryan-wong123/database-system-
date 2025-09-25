@@ -68,5 +68,7 @@ export const CategoriesAPI = {
 export const DietaryAPI = {
   list: () => api.get('/dietary-restrictions'),    
 };
-
+export const IncomeGroupAPI = {
+  list: () => api.get('/income-groups'),
+};
 export default api;

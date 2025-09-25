@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { AuthAPI } from '../services/api';
+import { AuthAPI, IncomeGroupAPI } from '../services/api'; // <-- add IncomeGroupAPI
 import { useAuth } from '../context/AuthContext';
+import useFetchData from '../hooks/useFetchData'; // <-- import your hook
 
 export default function Register() {
   const [form, setForm] = useState({ 
@@ -12,7 +13,7 @@ export default function Register() {
   });
   const [donee, setDonee] = useState({
     household_head_name: '',
-    income_group: 'low',
+    income_group: '',
     diet_flags_text: ''
   });
 
@@ -21,6 +22,10 @@ export default function Register() {
   const { login } = useAuth();
 
   const isDonee = form.role === 'donee';
+
+  // 🔹 Fetch income groups from backend
+  const { data: incomeResp, loading: incomeLoading, error: incomeError } =
+    useFetchData(() => IncomeGroupAPI.list(), []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -42,7 +47,7 @@ export default function Register() {
       payload = {
         ...payload,
         household_head_name: donee.household_head_name,
-        income_group: donee.income_group,
+        income_group: donee.income_group, // this is now set from dropdown
         diet_flags: dietFlags
       };
     }
@@ -132,12 +137,22 @@ export default function Register() {
                     <select
                       className="form-select"
                       value={donee.income_group}
+                      disabled={incomeLoading}
                       onChange={(e) => setDonee({ ...donee, income_group: e.target.value })}
+                      required
                     >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
+                      <option value="">-- Select Income Group --</option>
+                      {(Array.isArray(incomeResp?.items) ? incomeResp.items : (incomeResp || []))
+                        .map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.name}
+                          </option>
+                        ))}
                     </select>
+                    {incomeLoading && <div className="form-text">Loading options…</div>}
+                    {incomeError && (
+                      <div className="text-danger small">Failed to load income groups</div>
+                    )}
                   </div>
 
                   <div className="mb-3">
