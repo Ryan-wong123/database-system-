@@ -7,7 +7,7 @@ const authRoutes = require("./routes/auth");
 const foodItemRoutes = require("./routes/fooditem");
 const foodCategoryRoutes = require("./routes/foodcategory");
 require("dotenv").config();
-const { listInventory,listInventoryAdmin,listBookingsAdmin,listLocations,updateFoodItemTx,getAllFoodCategories   } = require("./db/queries");
+const Queries = require("./db/queries");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -70,7 +70,7 @@ app.get("/", (req, res) => {
 app.get("/inventory", async (req, res) => {
   try {
     // Query params: ?inStockOnly=true&q=rice&location_id=3
-    const items = await listInventory(req.query);
+    const items = await Queries.listInventory(req.query);
     res.json({ items });
   } catch (err) {
     console.error("Inventory query failed:", err);
@@ -80,7 +80,7 @@ app.get("/inventory", async (req, res) => {
 
 app.get("/admin/bookings", async (req, res) => {
   try {
-    const rows = await listBookingsAdmin();
+    const rows = await Queries.listBookingsAdmin();
     // normalize as { data: [...] } to be consistent with your other endpoints
     res.json({ data: rows });
   } catch (err) {
@@ -90,14 +90,14 @@ app.get("/admin/bookings", async (req, res) => {
 });
 
 app.get('/admin', async (req, res) => {
-  const items = await listInventoryAdmin();
+  const items = await Queries.listInventoryAdmin();
   res.json({ items });
 });
 
 // GET /api/locations -> returns an ARRAY (not {data: ...})
 app.get("/locations", async (req, res) => {
   try {
-    const rows = await listLocations();
+    const rows = await Queries.listLocations();
     res.json(rows); // array so UseFetchData -> locations.data is an array
   } catch (err) {
     console.error("GET /api/locations failed:", err);
@@ -146,7 +146,7 @@ app.patch('/api/admin/food/:itemId', async (req, res) => {
       return res.status(400).json({ error: 'location_id must be an integer' });
     }
 
-    const rows = await updateFoodItemTx({
+    const rows = await Queries.updateFoodItemTx({
       item_id,
       name: name.trim(),
       category_id: Number(category_id),
@@ -172,7 +172,7 @@ app.patch('/api/admin/food/:itemId', async (req, res) => {
 
 app.get('/categories', async (req, res) => {
   try {
-    const categories = await getAllFoodCategories();
+    const categories = await Queries.getAllFoodCategories();
     res.json(categories);
   } catch (err) {
     console.error('Failed to fetch categories:', err);

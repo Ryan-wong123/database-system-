@@ -1,7 +1,7 @@
 // Dashboard.js
 import { useEffect, useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { BookingAPI, InventoryAPI, LocationsAPI, AdminAPI, CategoriesAPI } from '../services/api';
+import * as API from '../services/api';
 
 function StatusPill({ value }) {
   const cls =
@@ -100,12 +100,12 @@ const toCategoryOptions = (raw) => {
 
 export default function Dashboard() {
   // Data
-  const locations  = UseFetchData(() => LocationsAPI.list(), []);
-  const categories = UseFetchData(() => CategoriesAPI.list(), []);
+  const locations  = UseFetchData(() => API.LocationsAPI.list(), []);
+  const categories = UseFetchData(() => API.CategoriesAPI.list(), []);
 
   // Refetch inventory after save
   const [stockTick, setStockTick] = useState(0);
-  const stock = UseFetchData(() => AdminAPI.list(), [stockTick]);
+  const stock = UseFetchData(() => API.AdminAPI.list(), [stockTick]);
 
   // Normalized options
   const locationOptions = useMemo(() => toLocationOptions(locations.data), [locations.data]);
@@ -122,7 +122,7 @@ export default function Dashboard() {
     let alive = true;
     (async () => {
       try {
-        const res = await BookingAPI.list();
+        const res = await API.BookingAPI.list();
         const raw =
           Array.isArray(res?.data?.data) ? res.data.data :
           Array.isArray(res?.data)       ? res.data :
@@ -216,7 +216,7 @@ export default function Dashboard() {
       };
 
       console.log('Sending payload:', payload);
-      await InventoryAPI.updateFood(editRow.item_id, payload);
+      await API.InventoryAPI.updateFood(editRow.item_id, payload);
 
       // Refetch inventory list
       setStockTick((t) => t + 1);
