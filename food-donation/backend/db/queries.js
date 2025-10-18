@@ -68,10 +68,29 @@ async function listInventoryAdmin() {
   const { rows } = await pgPool.query("SELECT * FROM admin_list_inventory()");
   return rows;
 }
+async function listBookingsAdmin() {
+  const sql = `
+    SELECT 
+      b.booking_id,
+      b.household_id,
+      b.location_id,
+      l.name       AS location_name,
+      b.slot_start_time,
+      b.slot_end_time,
+      b.status,
+      b.created_at
+    FROM Bookings b
+    JOIN Locations l ON l.location_id = b.location_id
+    ORDER BY b.created_at DESC
+  `;
+  const { rows } = await pgPool.query(sql);
+  return rows;
+}
 
 module.exports = {
   registerUser,
   loginUser,
   listInventory,
-  listInventoryAdmin
+  listInventoryAdmin,
+  listBookingsAdmin,
 };

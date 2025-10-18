@@ -50,6 +50,7 @@ export const AdminAPI = {
 }
 
 export const BookingAPI = {
+  list: () => api.get("/admin/bookings"),  
   create: (payload) => api.post('/bookings', payload),
   myBookings: () => api.get('/bookings/me'),
   availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),

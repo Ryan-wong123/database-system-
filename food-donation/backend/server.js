@@ -5,7 +5,7 @@ const redis = require("redis");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
 require("dotenv").config();
-const { listInventory,listInventoryAdmin } = require("./db/queries");
+const { listInventory,listInventoryAdmin,listBookingsAdmin  } = require("./db/queries");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -71,6 +71,17 @@ app.get("/inventory", async (req, res) => {
   } catch (err) {
     console.error("Inventory query failed:", err);
     res.status(500).json({ error: "Failed to load inventory" });
+  }
+});
+
+app.get("/admin/bookings", async (req, res) => {
+  try {
+    const rows = await listBookingsAdmin();
+    // normalize as { data: [...] } to be consistent with your other endpoints
+    res.json({ data: rows });
+  } catch (err) {
+    console.error("GET /api/admin/bookings failed:", err);
+    res.status(500).json({ error: "Failed to fetch bookings" });
   }
 });
 

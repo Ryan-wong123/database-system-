@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+// Dashboard.js
+import { useEffect, useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { BookingAPI, InventoryAPI, LocationsAPI, AdminAPI  } from '../services/api';
+import { BookingAPI, InventoryAPI, LocationsAPI, AdminAPI } from '../services/api';
 
 function StatusPill({ value }) {
   const cls =
@@ -12,14 +13,38 @@ function StatusPill({ value }) {
 }
 
 export default function Dashboard() {
-  // Locations via hook
+  // Locations via hook (used by Inventory section)
   const locations = UseFetchData(() => LocationsAPI.list(), []);
   const locationName = (id) =>
-    (Array.isArray(locations.data) ? locations.data : []).find((l) => String(l.id) === String(id))?.name || 'Unknown';
+    (Array.isArray(locations.data) ? locations.data : [])
+      .find((l) => String(l.id) === String(id))?.name || 'Unknown';
 
-  // Bookings & stock via hook (already present)
-  const bookings = UseFetchData(() => BookingAPI.adminList({ limit: 20 }), []);
-  const stock    = UseFetchData(() => AdminAPI.list(),[]);
+  // Stock via hook (Food/Inventory section)
+  const stock = UseFetchData(() => AdminAPI.list(), []);
+
+  // === Bookings section (from your integration script) ===
+  const [bookings, setBookings] = useState({ data: [] });
+  const [loadingBookings, setLoadingBookings] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await BookingAPI.list();
+        const raw =
+          Array.isArray(res?.data?.data) ? res.data.data :
+          Array.isArray(res?.data)       ? res.data :
+          [];
+        if (alive) setBookings({ data: raw });
+      } catch (e) {
+        console.error('Failed to load bookings', e);
+        if (alive) setBookings({ data: [] });
+      } finally {
+        if (alive) setLoadingBookings(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const [editRow, setEditRow] = useState(null);
   const startEdit = (row) => setEditRow({ ...row });
@@ -48,19 +73,6 @@ export default function Dashboard() {
     }
   };
 
-  const updateBookingStatus = async (id, newStatus) => {
-    try {
-      await BookingAPI.updateStatus(id, { status: newStatus });
-      bookings.setData((prev) => {
-        const rows = prev?.bookings || [];
-        return { ...prev, bookings: rows.map((b) => (b.booking_id === id ? { ...b, status: newStatus } : b)) };
-      });
-    } catch (e) {
-      console.error('Failed to update booking', e);
-      alert('Could not update booking status.');
-    }
-  };
-
   const groupedStock = useMemo(() => {
     const items = stock.data?.items || [];
     const map = new Map();
@@ -82,7 +94,7 @@ export default function Dashboard() {
     <div className="d-grid gap-4">
       <h1 className="h4">Admin Dashboard</h1>
 
-      {/* Bookings */}
+      {/* === Bookings (integrated) === */}
       <div className="card shadow-sm">
         <div className="card-body d-grid gap-3">
           <h2 className="h5 mb-0">Manage Bookings</h2>
@@ -90,40 +102,32 @@ export default function Dashboard() {
             <table className="table align-middle">
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th>Booking ID</th>
                   <th>Household</th>
                   <th>Location</th>
                   <th>Start</th>
                   <th>End</th>
                   <th>Status</th>
-                  <th style={{ width: 200 }}>Change Status</th>
+                  <th>Created</th>
                 </tr>
               </thead>
               <tbody>
-                {(bookings.data?.bookings || []).map((b) => (
-                  <tr key={b.booking_id}>
-                    <td><strong>{b.booking_id}</strong></td>
-                    <td>{b.household_name || b.household_id}</td>
-                    <td>{b.location_name || b.location_id}</td>
-                    <td>{new Date(b.slot_start_time).toLocaleString()}</td>
-                    <td>{new Date(b.slot_end_time).toLocaleString()}</td>
-                    <td><StatusPill value={b.status} /></td>
-                    <td>
-                      <select
-                        className="form-select form-select-sm"
-                        value={b.status}
-                        onChange={(e) => updateBookingStatus(b.booking_id, e.target.value)}
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="completed">Completed</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-                {(!bookings.data?.bookings || bookings.data.bookings.length === 0) && (
-                  <tr><td colSpan={7} className="text-muted">No bookings.</td></tr>
+                {loadingBookings ? (
+                  <tr><td colSpan={7}>Loading…</td></tr>
+                ) : (bookings.data || []).length === 0 ? (
+                  <tr><td colSpan={7} className="text-muted">No bookings found.</td></tr>
+                ) : (
+                  bookings.data.map((b) => (
+                    <tr key={b.booking_id}>
+                      <td><strong>{b.booking_id}</strong></td>
+                      <td>{b.household_name || `HH-${b.household_id}`}</td>
+                      <td>{b.location_name ?? `#${b.location_id}`}</td>
+                      <td>{new Date(b.slot_start_time).toLocaleString()}</td>
+                      <td>{new Date(b.slot_end_time).toLocaleString()}</td>
+                      <td><StatusPill value={b.status} /></td>
+                      <td>{new Date(b.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -131,7 +135,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Inventory */}
+      {/* === Inventory (Food) === */}
       <div className="card shadow-sm">
         <div className="card-body d-grid gap-3">
           <h2 className="h5 mb-0">Inventory (Edit items & move lots)</h2>
@@ -215,7 +219,7 @@ export default function Dashboard() {
                         <td>{it.qty}</td>
                         <td>{it.expiry_date ? new Date(it.expiry_date).toLocaleDateString() : '—'}</td>
                         <td>
-                          <button className="btn btn-sm btn-outline-primary" onClick={() => setEditRow(it)}>Edit</button>
+                          <button className="btn btn-sm btn-outline-primary" onClick={() => startEdit(it)}>Edit</button>
                         </td>
                       </tr>
                     ))}
