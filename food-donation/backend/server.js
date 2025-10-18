@@ -5,7 +5,7 @@ const redis = require("redis");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
 require("dotenv").config();
-
+const { listInventory } = require("./db/queries");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -65,25 +65,12 @@ app.get("/", (req, res) => {
 // -----------------------
 app.get("/inventory", async (req, res) => {
   try {
-    if (!pgPool) {
-      return res.status(500).send("PostgreSQL not ready yet");
-    }
-
-    const cacheKey = "inventory:all";
-    const cached = await redisClient.get(cacheKey);
-
-    if (cached) {
-      return res.json(JSON.parse(cached));
-    }
-
-    // Call the stored procedure
-    const result = await pgPool.query("SELECT * FROM get_inventory();");
-
-    await redisClient.setEx(cacheKey, 60, JSON.stringify({ items: result.rows }));
-    res.json({ items: result.rows });
+    // Query params: ?inStockOnly=true&q=rice&location_id=3
+    const items = await listInventory(req.query);
+    res.json({ items });
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Error fetching inventory data");
+    console.error("Inventory query failed:", err);
+    res.status(500).json({ error: "Failed to load inventory" });
   }
 });
 

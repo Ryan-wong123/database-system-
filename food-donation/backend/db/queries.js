@@ -24,6 +24,18 @@ async function registerUser(payload) {
     return result.rows[0];
   }
 }
+async function loginUser(email, password) {
+  const result = await pgPool.query("SELECT * FROM login_user($1)", [email]);
+  if (result.rowCount === 0) throw new Error("Invalid credentials");
+
+  const user = result.rows[0];
+  const match = await bcrypt.compare(password, user.password_hash);
+  if (!match) throw new Error("Invalid credentials");
+
+  const token = jwt.sign({ id: user.user_id, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
+
+  return { user_id: user.user_id, email: user.email, role: user.role, token };
+}
 
 async function listInventory({ inStockOnly, q, location_id }) {
   // Normalize inputs for the SQL function (NULLs mean "ignore filter")
@@ -52,10 +64,14 @@ async function listInventory({ inStockOnly, q, location_id }) {
   );
   return rows;
 }
-
+async function listInventoryAdmin() {
+  const { rows } = await pgPool.query("SELECT * FROM admin_list_inventory()");
+  return rows;
+}
 
 module.exports = {
   registerUser,
   loginUser,
   listInventory,
+  listInventoryAdmin
 };
