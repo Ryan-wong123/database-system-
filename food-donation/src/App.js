@@ -8,8 +8,6 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Donate from './pages/Donate';
 import Inventory from './pages/Inventory';
-import AboutUs from './pages/AboutUs';
-import ContactUs from './pages/ContactUs';
 import DonationHistory from './pages/DonationHistory';
 import Booking from './pages/Booking';
 import Profile from './pages/Profile';
@@ -60,9 +58,6 @@ export default function App() {
       roles: ['admin', 'donee', 'donor'],
       element: <DonationHistory />
     },
-
-    { path: '/about', element: <AboutUs /> },
-    { path: '/contact', element: <ContactUs /> },
   ];
 
   // Routes available when NOT logged in
