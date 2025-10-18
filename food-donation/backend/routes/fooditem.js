@@ -48,10 +48,10 @@ router.get("/list/:id", async(req, res)=>{
 //Create Food Item
 router.post("/create", async (req, res) => {
   try {
-    const success = await addFoodItem(req.body);
+    const fooditem = await addFoodItem(req.body);
 
-    if (success) {
-      return res.status(201).json({ ok: true });
+    if (fooditem) {
+      return res.status(201).json({ ok: true, fooditem });
     }
     return res.status(500).json({ ok: false, error: "Insert failed" });
 

@@ -24,7 +24,7 @@ async function getFoodItem(id){
 }
 
 async function addFoodItem(payload) {
-    const sql = `SELECT add_food_item($1,$2,$3,$4,$5) AS ok`;
+const sql = `SELECT to_jsonb(t) AS fooditem FROM add_food_item($1, $2, $3, $4, $5) AS t`;
     const values = [
         payload.name,
         payload.category_id,
@@ -36,7 +36,7 @@ async function addFoodItem(payload) {
 
     try {
         const { rows } = await pgPool.query(sql, values);
-        return rows?.[0]?.ok === true;
+        return rows[0]?.fooditem;
     } catch (err) {
         throw err;
     }

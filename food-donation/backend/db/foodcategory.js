@@ -24,15 +24,14 @@ async function searchFoodCategory(name){
 }
 
 async function addFoodCategory(payload) {
-    const sql = `SELECT * from add_food_category($1)`;
+    const sql = `SELECT to_jsonb(t) AS category FROM add_food_category($1) AS t`;
     const values = [
         payload.name
     ];
     
-
     try {
         const { rows } = await pgPool.query(sql, values);
-        return rows?.[0]?.ok === true;
+        return rows[0]?.category;
     } catch (err) {
         throw err;
     }
