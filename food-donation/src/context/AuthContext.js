@@ -27,20 +27,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('auth:user');
   };
 
-  //used for demo login for different roles bypass
-  const loginDemo = (kind = 'donee') => {
-    const role = roleMap[kind];
-    const demo = {
-      id: `demo-${role}`,
-      email: `${role}@demo.local`,
-      role,              // 'donee' | 'donor' | 'admin'
-      token: `demo-token-${role}`,
-    };
-    setUser(demo);
-    localStorage.setItem('auth:user', JSON.stringify(demo));
-  };
-
-  const value = useMemo(() => ({ user, login, logout, loginDemo }), [user]);
+  const value = useMemo(() => ({ user, login, logout }), [user]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
