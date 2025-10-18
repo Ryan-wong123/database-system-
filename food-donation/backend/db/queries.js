@@ -87,10 +87,22 @@ async function listBookingsAdmin() {
   return rows;
 }
 
+async function listLocations() {
+  const sql = `
+    SELECT
+      name
+    FROM Locations
+    ORDER BY name ASC
+  `;
+  const { rows } = await pgPool.query(sql);
+  return rows; // return an ARRAY (so the frontend's UseFetchData works as-is)
+}
+
 module.exports = {
   registerUser,
   loginUser,
   listInventory,
   listInventoryAdmin,
   listBookingsAdmin,
+  listLocations,
 };

@@ -5,7 +5,7 @@ const redis = require("redis");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
 require("dotenv").config();
-const { listInventory,listInventoryAdmin,listBookingsAdmin  } = require("./db/queries");
+const { listInventory,listInventoryAdmin,listBookingsAdmin,listLocations  } = require("./db/queries");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -88,6 +88,17 @@ app.get("/admin/bookings", async (req, res) => {
 app.get('/admin', async (req, res) => {
   const items = await listInventoryAdmin();
   res.json({ items });
+});
+
+// GET /api/locations -> returns an ARRAY (not {data: ...})
+app.get("/locations", async (req, res) => {
+  try {
+    const rows = await listLocations();
+    res.json(rows); // array so UseFetchData -> locations.data is an array
+  } catch (err) {
+    console.error("GET /api/locations failed:", err);
+    res.status(500).json({ error: "Failed to fetch locations" });
+  }
 });
 
 // MongoDB example
