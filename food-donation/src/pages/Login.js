@@ -8,7 +8,6 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const navigate = useNavigate();
-  //TODO: remove login demo once done testing
   const { login } = useAuth();
 
   const submit = async (e) => {
