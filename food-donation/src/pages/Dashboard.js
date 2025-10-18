@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { BookingAPI, InventoryAPI, LocationsAPI } from '../services/api';
+import { BookingAPI, InventoryAPI, LocationsAPI, AdminAPI  } from '../services/api';
 
 function StatusPill({ value }) {
   const cls =
@@ -19,7 +19,7 @@ export default function Dashboard() {
 
   // Bookings & stock via hook (already present)
   const bookings = UseFetchData(() => BookingAPI.adminList({ limit: 20 }), []);
-  const stock    = UseFetchData(() => InventoryAPI.list({ inStockOnly: true }), []);
+  const stock    = UseFetchData(() => AdminAPI.list(),[]);
 
   const [editRow, setEditRow] = useState(null);
   const startEdit = (row) => setEditRow({ ...row });
@@ -39,7 +39,7 @@ export default function Dashboard() {
         name: editRow.name,
         category: editRow.category,
       });
-      const res = await InventoryAPI.list({ inStockOnly: true });
+      const res = await AdminAPI.list();
       stock.setData(res.data);
       setEditRow(null);
     } catch (e) {

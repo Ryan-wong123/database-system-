@@ -45,6 +45,9 @@ export const InventoryAPI = {
   list: (params) => api.get('/inventory', { params }),
   getNearingExpiry: () => api.get('/inventory/nearing-expiry'),
 };
+export const AdminAPI = {
+  list: () => api.get('/admin'),
+}
 
 export const BookingAPI = {
   create: (payload) => api.post('/bookings', payload),

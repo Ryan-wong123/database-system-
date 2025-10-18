@@ -5,7 +5,7 @@ const redis = require("redis");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
 require("dotenv").config();
-const { listInventory } = require("./db/queries");
+const { listInventory,listInventoryAdmin } = require("./db/queries");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -74,6 +74,10 @@ app.get("/inventory", async (req, res) => {
   }
 });
 
+app.get('/admin', async (req, res) => {
+  const items = await listInventoryAdmin();
+  res.json({ items });
+});
 
 // MongoDB example
 app.get("/mongo-households", async (req, res) => {
