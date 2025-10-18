@@ -5,8 +5,7 @@ const redis = require("redis");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
 require("dotenv").config();
-// near the top with other routes
-const inventoryRoutes = require("./routes/inventory");
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -64,29 +63,29 @@ app.get("/", (req, res) => {
 // -----------------------
 // Inventory route
 // -----------------------
-// app.get("/inventory", async (req, res) => {
-//   try {
-//     if (!pgPool) {
-//       return res.status(500).send("PostgreSQL not ready yet");
-//     }
+app.get("/inventory", async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(500).send("PostgreSQL not ready yet");
+    }
 
-//     const cacheKey = "inventory:all";
-//     const cached = await redisClient.get(cacheKey);
+    const cacheKey = "inventory:all";
+    const cached = await redisClient.get(cacheKey);
 
-//     if (cached) {
-//       return res.json(JSON.parse(cached));
-//     }
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
 
-//     // Call the stored procedure
-//     const result = await pgPool.query("SELECT * FROM get_inventory();");
+    // Call the stored procedure
+    const result = await pgPool.query("SELECT * FROM get_inventory();");
 
-//     await redisClient.setEx(cacheKey, 60, JSON.stringify({ items: result.rows }));
-//     res.json({ items: result.rows });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send("Error fetching inventory data");
-//   }
-// });
+    await redisClient.setEx(cacheKey, 60, JSON.stringify({ items: result.rows }));
+    res.json({ items: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error fetching inventory data");
+  }
+});
 
 
 // MongoDB example
@@ -115,8 +114,6 @@ app.get("/cache-test", async (req, res) => {
     res.status(500).send("Error using Redis");
   }
 });
-
-app.use("/inventory", inventoryRoutes);
 
 // -----------------------
 // Start Express Server
