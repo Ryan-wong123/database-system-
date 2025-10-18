@@ -1,28 +1,120 @@
 // Dashboard.js
 import { useEffect, useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { BookingAPI, InventoryAPI, LocationsAPI, AdminAPI } from '../services/api';
+import { BookingAPI, InventoryAPI, LocationsAPI, AdminAPI, CategoriesAPI } from '../services/api';
 
 function StatusPill({ value }) {
   const cls =
-    value === 'confirmed' ? 'text-bg-success' :
-    value === 'pending'   ? 'text-bg-secondary' :
-    value === 'cancelled' ? 'text-bg-danger' :
-    value === 'completed' ? 'text-bg-primary' : 'text-bg-light';
+    value === 'confirmed' ? 'text-bg-success'
+    : value === 'pending' ? 'text-bg-secondary'
+    : value === 'cancelled' ? 'text-bg-danger'
+    : value === 'completed' ? 'text-bg-primary'
+    : 'text-bg-light';
   return <span className={`badge ${cls}`}>{value}</span>;
 }
 
+/* ───────────────────────────── Dates (timezone-safe) ───────────────────────────── */
+// Extract a pure YYYY-MM-DD from many shapes without timezone math
+const pickISODate = (v) => {
+  if (!v) return null;
+
+  if (typeof v === 'string') {
+    // 1) Already ISO date or ISO datetime (take the date part)
+    const mISO = v.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (mISO) return mISO[1];
+
+    // 2) Common "YYYY-MM-DD HH:mm:ss" (with space)
+    const mISOWithSpace = v.match(/^(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}:\d{2}/);
+    if (mISOWithSpace) return mISOWithSpace[1];
+
+    // 3) DMY like 24/12/2025
+    const mDMY = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (mDMY) {
+      const [, dd, mm, yyyy] = mDMY;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  // 4) Date object: build YYYY-MM-DD from local parts (no UTC conversion)
+  if (v instanceof Date && !isNaN(v)) {
+    const yyyy = v.getFullYear();
+    const mm = String(v.getMonth() + 1).padStart(2, '0');
+    const dd = String(v.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // 5) Fallback: parse but DO NOT use toISOString()
+  const d = new Date(v);
+  if (!isNaN(d)) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return null;
+};
+
+// For saving to backend (expecting YYYY-MM-DD)
+const normalizeDate = (v) => pickISODate(v);
+
+// For showing in <input type="date"> (empty string when unknown)
+const normalizeDateForEdit = (v) => pickISODate(v) ?? '';
+
+// For table display without timezones (DD/MM/YYYY)
+const formatDateForView = (v) => {
+  const iso = pickISODate(v);
+  if (!iso) return '—';
+  const [yyyy, mm, dd] = iso.split('-');
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+/* ───────────────────────────── Option normalizers ───────────────────────────── */
+const toLocationOptions = (raw) => {
+  const arr =
+    Array.isArray(raw?.data?.data) ? raw.data.data :
+    Array.isArray(raw?.data)       ? raw.data :
+    Array.isArray(raw)             ? raw :
+    [];
+  return arr
+    .map((l) => ({
+      id:   l?.id ?? l?.location_id ?? l?.locationId ?? null,
+      name: l?.name ?? l?.location_name ?? l?.title ?? null,
+    }))
+    .filter((x) => x.id !== null && x.name);
+};
+
+const toCategoryOptions = (raw) => {
+  const arr =
+    Array.isArray(raw?.data?.data) ? raw.data.data :
+    Array.isArray(raw?.data)       ? raw.data :
+    Array.isArray(raw)             ? raw :
+    [];
+  return arr
+    .map((c) => ({
+      id:   c?.category_id ?? c?.id ?? null,
+      name: c?.name ?? null,
+    }))
+    .filter((x) => x.id !== null && x.name);
+};
+
 export default function Dashboard() {
-  // Locations via hook (used by Inventory section)
-  const locations = UseFetchData(() => LocationsAPI.list(), []);
+  // Data
+  const locations  = UseFetchData(() => LocationsAPI.list(), []);
+  const categories = UseFetchData(() => CategoriesAPI.list(), []);
+
+  // Refetch inventory after save
+  const [stockTick, setStockTick] = useState(0);
+  const stock = UseFetchData(() => AdminAPI.list(), [stockTick]);
+
+  // Normalized options
+  const locationOptions = useMemo(() => toLocationOptions(locations.data), [locations.data]);
+  const categoryOptions = useMemo(() => toCategoryOptions(categories.data), [categories.data]);
+
   const locationName = (id) =>
-    (Array.isArray(locations.data) ? locations.data : [])
-      .find((l) => String(l.id) === String(id))?.name || 'Unknown';
+    locationOptions.find((l) => String(l.id) === String(id))?.name || 'Unknown';
 
-  // Stock via hook (Food/Inventory section)
-  const stock = UseFetchData(() => AdminAPI.list(), []);
-
-  // === Bookings section (from your integration script) ===
+  /* ───────────────────────────── Manage Bookings ───────────────────────────── */
   const [bookings, setBookings] = useState({ data: [] });
   const [loadingBookings, setLoadingBookings] = useState(true);
 
@@ -46,26 +138,88 @@ export default function Dashboard() {
     return () => { alive = false; };
   }, []);
 
+  /* ───────────────────────────── Edit State ───────────────────────────── */
   const [editRow, setEditRow] = useState(null);
-  const startEdit = (row) => setEditRow({ ...row });
+
+  const startEdit = (row) => {
+    // Location
+    let loc = row.location_id;
+    if (!Number.isFinite(Number(loc))) {
+      const foundLoc =
+        locationOptions.find((x) => x.name === row.location_name) ||
+        locationOptions.find((x) => String(x.id) === String(row.location_id));
+      loc = foundLoc ? foundLoc.id : '';
+    }
+
+    // Category
+    let cat = row.category_id;
+    if (!Number.isFinite(Number(cat))) {
+      const candidateName =
+        row.category ||
+        row.category_name ||
+        row.food_category ||
+        row.categoryName;
+      const foundCat =
+        categoryOptions.find((x) => x.name === candidateName) ||
+        categoryOptions.find((x) => String(x.id) === String(row.category_id));
+      cat = foundCat ? foundCat.id : '';
+    }
+
+    setEditRow({
+      ...row,
+      location_id: Number.isFinite(Number(loc)) ? Number(loc) : '',
+      category_id: Number.isFinite(Number(cat)) ? Number(cat) : '',
+      // IMPORTANT: normalize for the date input as pure YYYY-MM-DD
+      expiry_date: normalizeDateForEdit(row.expiry_date),
+    });
+  };
+
   const cancelEdit = () => setEditRow(null);
 
+  // If locations load after opening the form, re-normalize location_id
+  useEffect(() => {
+    if (!editRow) return;
+    if (Number.isFinite(Number(editRow.location_id))) return;
+    const found =
+      locationOptions.find((x) => x.name === editRow?.location_name) ||
+      locationOptions.find((x) => String(x.id) === String(editRow?.location_id));
+    if (found) setEditRow((r) => ({ ...r, location_id: Number(found.id) }));
+  }, [locationOptions, editRow]);
+
+  // If categories load after opening the form, re-normalize category_id
+  useEffect(() => {
+    if (!editRow) return;
+    if (Number.isFinite(Number(editRow.category_id))) return;
+    const candidateName =
+      editRow?.category ||
+      editRow?.category_name ||
+      editRow?.food_category ||
+      editRow?.categoryName;
+    const found =
+      categoryOptions.find((x) => x.name === candidateName) ||
+      categoryOptions.find((x) => String(x.id) === String(editRow?.category_id));
+    if (found) setEditRow((r) => ({ ...r, category_id: Number(found.id) }));
+  }, [categoryOptions, editRow]);
+
+  /* ───────────────────────────── Save ───────────────────────────── */
   const saveEdit = async () => {
     if (!editRow) return;
     try {
-      if (editRow.lot_id) {
-        await InventoryAPI.updateLot(editRow.lot_id, {
-          location_id: editRow.location_id,
-          qty: Number(editRow.qty),
-          expiry_date: editRow.expiry_date,
-        });
-      }
-      await InventoryAPI.updateItem(editRow.item_id, {
-        name: editRow.name,
-        category: editRow.category,
-      });
-      const res = await AdminAPI.list();
-      stock.setData(res.data);
+      const payload = {
+        name: (editRow.name ?? '').trim(),
+        category_id: Number(editRow.category_id),
+        qty: Number(editRow.qty),
+        // Save as pure YYYY-MM-DD string
+        expiry_date: normalizeDate(editRow.expiry_date),
+        location_id: Number(editRow.location_id),
+        lot_id: editRow.lot_id,
+      };
+
+      console.log('Sending payload:', payload);
+      await InventoryAPI.updateFood(editRow.item_id, payload);
+
+      // Refetch inventory list
+      setStockTick((t) => t + 1);
       setEditRow(null);
     } catch (e) {
       console.error('Failed to save inventory', e);
@@ -73,6 +227,7 @@ export default function Dashboard() {
     }
   };
 
+  /* ───────────────────────────── Grouped Inventory ───────────────────────────── */
   const groupedStock = useMemo(() => {
     const items = stock.data?.items || [];
     const map = new Map();
@@ -88,13 +243,14 @@ export default function Dashboard() {
       map.get(key).items.push(it);
     }
     return Array.from(map.values());
-  }, [stock.data, locations.data]);
+  }, [stock.data, locationOptions]);
 
+  /* ───────────────────────────── Render ───────────────────────────── */
   return (
     <div className="d-grid gap-4">
       <h1 className="h4">Admin Dashboard</h1>
 
-      {/* === Bookings (integrated) === */}
+      {/* === Bookings === */}
       <div className="card shadow-sm">
         <div className="card-body d-grid gap-3">
           <h2 className="h5 mb-0">Manage Bookings</h2>
@@ -135,7 +291,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* === Inventory (Food) === */}
+      {/* === Inventory === */}
       <div className="card shadow-sm">
         <div className="card-body d-grid gap-3">
           <h2 className="h5 mb-0">Inventory (Edit items & move lots)</h2>
@@ -145,39 +301,82 @@ export default function Dashboard() {
               <div className="row g-3">
                 <div className="col-md-4">
                   <label className="form-label">Item Name</label>
-                  <input className="form-control" value={editRow.name}
-                    onChange={(e) => setEditRow({ ...editRow, name: e.target.value })} />
+                  <input
+                    className="form-control"
+                    value={editRow.name}
+                    onChange={(e) => setEditRow({ ...editRow, name: e.target.value })}
+                  />
                 </div>
+
                 <div className="col-md-3">
                   <label className="form-label">Category</label>
-                  <input className="form-control" value={editRow.category}
-                    onChange={(e) => setEditRow({ ...editRow, category: e.target.value })} />
+                  <select
+                    className="form-select"
+                    value={String(editRow?.category_id ?? '')}
+                    onChange={(e) =>
+                      setEditRow({ ...editRow, category_id: e.target.value === '' ? '' : Number(e.target.value) })
+                    }
+                  >
+                    <option value="">Select category</option>
+                    {categoryOptions.length === 0 ? (
+                      <option disabled value="">(No categories found)</option>
+                    ) : (
+                      categoryOptions.map((c) => (
+                        <option key={c.id} value={String(c.id)}>{c.name}</option>
+                      ))
+                    )}
+                  </select>
                 </div>
+
                 {editRow.lot_id && (
                   <>
                     <div className="col-md-2">
                       <label className="form-label">Qty</label>
-                      <input type="number" min={0} className="form-control" value={editRow.qty}
-                        onChange={(e) => setEditRow({ ...editRow, qty: Number(e.target.value) })} />
+                      <input
+                        type="number"
+                        min={0}
+                        className="form-control"
+                        value={editRow.qty}
+                        onChange={(e) => setEditRow({ ...editRow, qty: Number(e.target.value) })}
+                      />
                     </div>
+
                     <div className="col-md-3">
                       <label className="form-label">Expiry</label>
-                      <input type="date" className="form-control" value={editRow.expiry_date || ''}
-                        onChange={(e) => setEditRow({ ...editRow, expiry_date: e.target.value })} />
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={normalizeDateForEdit(editRow.expiry_date)}
+                        onChange={(e) => setEditRow({ ...editRow, expiry_date: e.target.value })}
+                      />
                     </div>
+
                     <div className="col-md-4">
                       <label className="form-label">Location</label>
-                      <select className="form-select" value={editRow.location_id || ''}
-                        onChange={(e) => setEditRow({ ...editRow, location_id: e.target.value })}>
+                      <select
+                        className="form-select"
+                        value={String(editRow?.location_id ?? '')}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setEditRow((r) => ({ ...r, location_id: v === '' ? '' : Number(v) }));
+                        }}
+                      >
                         <option value="">Select location</option>
-                        {(Array.isArray(locations.data) ? locations.data : []).map((l) => (
-                          <option key={l.id} value={l.id}>{l.name}</option>
-                        ))}
+                        {locationOptions.length === 0 ? (
+                          <option disabled value="">(No locations found)</option>
+                        ) : (
+                          locationOptions.map((x) => (
+                            <option key={x.id} value={String(x.id)}>
+                              {x.name}
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </>
                 )}
               </div>
+
               <div className="d-flex gap-2">
                 <button className="btn btn-primary" onClick={saveEdit}>Save</button>
                 <button className="btn btn-outline-secondary" onClick={cancelEdit}>Cancel</button>
@@ -185,24 +384,13 @@ export default function Dashboard() {
             </div>
           )}
 
-          {useMemo(() => {
-            const groups = [];
-            const items = stock.data?.items || [];
-            const map = new Map();
-            for (const it of items) {
-              const key = it.location_id || 'unknown';
-              if (!map.has(key)) {
-                map.set(key, { location_id: key, location_name: it.location_name || locationName(key), items: [] });
-              }
-              map.get(key).items.push(it);
-            }
-            for (const v of map.values()) groups.push(v);
-            return groups;
-          }, [stock.data, locations.data]).map((g) => (
+          {groupedStock.map((g) => (
             <div key={g.location_id} className="mb-3">
               <div className="d-flex justify-content-between align-items-baseline">
                 <h3 className="h6 mb-2">{g.location_name}</h3>
-                <span className="badge text-bg-secondary">{g.items.length} item{g.items.length !== 1 ? 's' : ''}</span>
+                <span className="badge text-bg-secondary">
+                  {g.items.length} item{g.items.length !== 1 ? 's' : ''}
+                </span>
               </div>
               <div className="table-responsive">
                 <table className="table align-middle">
@@ -217,18 +405,23 @@ export default function Dashboard() {
                         <td>{it.name}</td>
                         <td>{it.category || '—'}</td>
                         <td>{it.qty}</td>
-                        <td>{it.expiry_date ? new Date(it.expiry_date).toLocaleDateString() : '—'}</td>
+                        <td>{formatDateForView(it.expiry_date)}</td>
                         <td>
-                          <button className="btn btn-sm btn-outline-primary" onClick={() => startEdit(it)}>Edit</button>
+                          <button className="btn btn-sm btn-outline-primary" onClick={() => startEdit(it)}>
+                            Edit
+                          </button>
                         </td>
                       </tr>
                     ))}
-                    {g.items.length === 0 && <tr><td colSpan={5} className="text-muted">No items.</td></tr>}
+                    {g.items.length === 0 && (
+                      <tr><td colSpan={5} className="text-muted">No items.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           ))}
+
           {!stock.loading && (!stock.data?.items || stock.data.items.length === 0) && (
             <div className="text-muted">No stock.</div>
           )}

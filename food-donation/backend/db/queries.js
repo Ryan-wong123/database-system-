@@ -90,13 +90,89 @@ async function listBookingsAdmin() {
 async function listLocations() {
   const sql = `
     SELECT
+      location_id AS id,
       name
     FROM Locations
     ORDER BY name ASC
   `;
   const { rows } = await pgPool.query(sql);
-  return rows; // return an ARRAY (so the frontend's UseFetchData works as-is)
+  return rows;
 }
+
+
+async function updateFoodItemTx({ item_id, name, category_id, qty, expiry_date, location_id, lot_id = null }) {
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1) FoodItems: name + category
+    await client.query(
+      `
+      UPDATE FoodItems
+      SET name = $1,
+          category_id = $2
+      WHERE food_item_id = $3
+      `,
+      [name, category_id, item_id]
+    );
+
+    // 2) Inventory: qty + expiry + location
+    //    If lot_id is provided, constrain by lot_id; else update all lots of this food item
+    const params = [qty, expiry_date, location_id, item_id];
+    const sqlInv = `
+      UPDATE Inventory
+      SET qty = $1,
+          expiry_date = $2,
+          location_id = $3
+      WHERE food_item_id = $4
+      ${lot_id ? 'AND lot_id = $5' : ''}
+    `;
+    if (lot_id) params.push(lot_id);
+    await client.query(sqlInv, params);
+
+    // Return the updated rows (matches your SELECT shape)
+    const selParams = [item_id];
+    const sel = `
+      SELECT 
+          fi.food_item_id,
+          fi.name        AS food_name,
+          fc.name        AS category,
+          fu.unit        AS unit,
+          i.lot_id,
+          i.qty,
+          i.expiry_date,
+          l.name         AS location
+      FROM Inventory i
+      JOIN FoodItems    fi ON i.food_item_id = fi.food_item_id
+      JOIN FoodCategory fc ON fi.category_id = fc.category_id
+      JOIN FoodUnit     fu ON fi.unit_id = fu.unit_id
+      JOIN Locations    l  ON i.location_id = l.location_id
+      WHERE fi.food_item_id = $1
+      ${lot_id ? 'AND i.lot_id = $2' : ''}
+      ORDER BY fi.name
+    `;
+    if (lot_id) selParams.push(lot_id);
+
+    const { rows } = await client.query(sel, selParams);
+
+    await client.query('COMMIT');
+    return rows; // array of updated lot rows
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('updateFoodItemTx failed:', err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+// db/queries.js
+async function getAllFoodCategories() {
+  const { rows } = await pgPool.query(
+    `SELECT category_id, name FROM FoodCategory ORDER BY name`
+  );
+  return rows;
+}
+
 
 module.exports = {
   registerUser,
@@ -105,4 +181,6 @@ module.exports = {
   listInventoryAdmin,
   listBookingsAdmin,
   listLocations,
+  updateFoodItemTx,
+  getAllFoodCategories,
 };

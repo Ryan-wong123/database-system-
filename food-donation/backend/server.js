@@ -7,7 +7,7 @@ const authRoutes = require("./routes/auth");
 const foodItemRoutes = require("./routes/fooditem");
 const foodCategoryRoutes = require("./routes/foodcategory");
 require("dotenv").config();
-const { listInventory,listInventoryAdmin,listBookingsAdmin,listLocations  } = require("./db/queries");
+const { listInventory,listInventoryAdmin,listBookingsAdmin,listLocations,updateFoodItemTx,getAllFoodCategories   } = require("./db/queries");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -105,6 +105,80 @@ app.get("/locations", async (req, res) => {
   }
 });
 
+// server.js
+app.patch('/api/admin/food/:itemId', async (req, res) => {
+  try {
+    const item_id = Number(req.params.itemId);
+    let { name, category_id, category, qty, expiry_date, location_id, lot_id } = req.body || {};
+
+    if (!item_id) return res.status(400).json({ error: 'Invalid item_id' });
+
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'name is required' });
+    }
+
+    // resolve category name -> id if needed
+    if (category_id == null && typeof category === 'string' && category.trim()) {
+      const { rows } = await pgPool.query(
+        `SELECT category_id FROM FoodCategory WHERE name ILIKE $1 LIMIT 1`,
+        [category.trim()]
+      );
+      if (!rows[0]) return res.status(400).json({ error: `Unknown category: ${category}` });
+      category_id = rows[0].category_id;
+    }
+
+    if (category_id == null || isNaN(Number(category_id))) {
+      return res.status(400).json({ error: 'category_id is required (or pass category name)' });
+    }
+
+    qty = Number(qty);
+    if (!Number.isInteger(qty) || qty < 0) {
+      return res.status(400).json({ error: 'qty must be a non-negative integer' });
+    }
+
+    // accept only YYYY-MM-DD for safety
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(expiry_date))) {
+      return res.status(400).json({ error: 'expiry_date must be YYYY-MM-DD' });
+    }
+
+    location_id = Number(location_id);
+    if (!Number.isInteger(location_id)) {
+      return res.status(400).json({ error: 'location_id must be an integer' });
+    }
+
+    const rows = await updateFoodItemTx({
+      item_id,
+      name: name.trim(),
+      category_id: Number(category_id),
+      qty,
+      expiry_date,
+      location_id,
+      lot_id: lot_id ? Number(lot_id) : null,
+    });
+
+    res.json({ data: rows });
+  } catch (err) {
+    console.error('PATCH /api/admin/food/:itemId failed:', err);
+    // expose useful PG errors for uniqueness / constraint violations
+    if (err?.code === '23505') {
+      return res.status(409).json({ error: 'Name already exists (unique constraint)' });
+    }
+    if (err?.code === '23514') {
+      return res.status(400).json({ error: 'Constraint failed (e.g., expiry must be today or later)' });
+    }
+    res.status(500).json({ error: 'Failed to update food item' });
+  }
+});
+
+app.get('/categories', async (req, res) => {
+  try {
+    const categories = await getAllFoodCategories();
+    res.json(categories);
+  } catch (err) {
+    console.error('Failed to fetch categories:', err);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
 // MongoDB example
 app.get("/mongo-households", async (req, res) => {
   try {

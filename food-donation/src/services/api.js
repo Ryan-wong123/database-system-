@@ -44,6 +44,7 @@ export const DonationAPI = {
 export const InventoryAPI = {
   list: (params) => api.get('/inventory', { params }),
   getNearingExpiry: () => api.get('/inventory/nearing-expiry'),
+  updateFood: (itemId, body) => api.patch(`/api/admin/food/${itemId}`, body),
 };
 export const AdminAPI = {
   list: () => api.get('/admin'),
