@@ -174,6 +174,31 @@ async function getAllFoodCategories() {
 }
 
 
+// Allowed statuses – match what your DB actually accepts.
+const ALLOWED_BOOKING_STATUSES = new Set(['pending','confirmed','cancelled','completed']);
+
+async function updateBookingStatus({ booking_id, status }) {
+  if (!ALLOWED_BOOKING_STATUSES.has(status)) {
+    const allowed = Array.from(ALLOWED_BOOKING_STATUSES).join(', ');
+    throw new Error(`Invalid status "${status}". Allowed: ${allowed}`);
+  }
+
+  const sql = `
+    UPDATE Bookings
+       SET status = $2
+     WHERE booking_id = $1
+     RETURNING booking_id, household_id, location_id, status, created_at
+  `;
+  const { rows } = await pgPool.query(sql, [Number(booking_id), status]);
+  if (rows.length === 0) {
+    const e = new Error('Booking not found');
+    e.statusCode = 404;
+    throw e;
+  }
+  return rows[0];
+}
+
+
 module.exports = {
   registerUser,
   loginUser,
@@ -183,4 +208,5 @@ module.exports = {
   listLocations,
   updateFoodItemTx,
   getAllFoodCategories,
+  updateBookingStatus,
 };

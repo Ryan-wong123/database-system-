@@ -179,6 +179,35 @@ app.get('/categories', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
+
+// PATCH booking status
+app.patch('/admin/bookings/:bookingId/status', async (req, res) => {
+  try {
+    const bookingId = Number(req.params.bookingId);
+    const { status } = req.body || {};
+
+    if (!Number.isInteger(bookingId)) {
+      return res.status(400).json({ error: 'Invalid bookingId' });
+    }
+    if (typeof status !== 'string' || !status.trim()) {
+      return res.status(400).json({ error: 'status is required' });
+    }
+
+    const row = await Queries.updateBookingStatus({ booking_id: bookingId, status: status.trim() });
+    res.json({ data: row });
+  } catch (err) {
+    console.error('PATCH /admin/bookings/:bookingId/status failed:', err);
+    if (err.statusCode === 404) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    if (err.message?.startsWith('Invalid status')) {
+      return res.status(400).json({ error: err.message });
+    }
+    return res.status(500).json({ error: 'Failed to update booking status' });
+  }
+});
+
+
 // MongoDB example
 app.get("/mongo-households", async (req, res) => {
   try {

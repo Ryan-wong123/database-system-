@@ -56,7 +56,7 @@ export const BookingAPI = {
   myBookings: () => api.get('/bookings/me'),
   availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),
   adminList: (params) => api.get('/bookings/admin', { params }), 
-  updateStatus: (bookingId, payload) => api.patch(`/bookings/${bookingId}/status`, payload),
+  updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
 };
 
 export const LocationsAPI = {

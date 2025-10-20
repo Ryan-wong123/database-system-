@@ -12,6 +12,7 @@ function StatusPill({ value }) {
     : 'text-bg-light';
   return <span className={`badge ${cls}`}>{value}</span>;
 }
+const BOOKING_STATUSES = ['pending', 'confirmed', 'rejected'];
 
 /* ───────────────────────────── Dates (timezone-safe) ───────────────────────────── */
 // Extract a pure YYYY-MM-DD from many shapes without timezone math
@@ -137,6 +138,43 @@ export default function Dashboard() {
     })();
     return () => { alive = false; };
   }, []);
+
+  // Update booking status (dropdown -> immediate DB write)
+  const updateBookingStatus = async (bookingId, nextStatus) => {
+    // optimistic UI update
+    setBookings((prev) => {
+      const arr = Array.isArray(prev?.data) ? prev.data : [];
+      return {
+        data: arr.map((b) =>
+          b.booking_id === bookingId ? { ...b, status: nextStatus, __optimistic: true } : b
+        ),
+      };
+    });
+
+    try {
+      await API.BookingAPI.updateStatus(bookingId, { status: nextStatus });
+      // clear optimistic flag
+      setBookings((prev) => ({
+        data: (prev?.data || []).map((b) =>
+          b.booking_id === bookingId ? { ...b, __optimistic: undefined } : b
+        ),
+      }));
+    } catch (err) {
+      console.error('Failed to update booking status:', err);
+      alert('Could not update booking status.');
+      // reload bookings to ensure accuracy
+      try {
+        const res = await API.BookingAPI.list();
+        const raw =
+          Array.isArray(res?.data?.data) ? res.data.data :
+          Array.isArray(res?.data)       ? res.data :
+          [];
+        setBookings({ data: raw });
+      } catch (_) {
+        /* ignore secondary error */
+      }
+    }
+  };
 
   /* ───────────────────────────── Edit State ───────────────────────────── */
   const [editRow, setEditRow] = useState(null);
@@ -280,7 +318,31 @@ export default function Dashboard() {
                       <td>{b.location_name ?? `#${b.location_id}`}</td>
                       <td>{new Date(b.slot_start_time).toLocaleString()}</td>
                       <td>{new Date(b.slot_end_time).toLocaleString()}</td>
-                      <td><StatusPill value={b.status} /></td>
+                      <select
+                        className="form-select form-select-sm"
+                        value={b.status}
+                        onChange={async (e) => {
+                          const newStatus = e.target.value;
+                          try {
+                            await API.BookingAPI.updateStatus(b.booking_id, { status: newStatus });
+                            setBookings((prev) => ({
+                              data: (prev.data || []).map((x) =>
+                                x.booking_id === b.booking_id ? { ...x, status: newStatus } : x
+                              ),
+                            }));
+                          } catch (err) {
+                            console.error('Update booking status failed', err);
+                            alert('Could not update booking status.');
+                          }
+                        }}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="completed">Completed</option>
+                      </select>
+
+
                       <td>{new Date(b.created_at).toLocaleString()}</td>
                     </tr>
                   ))
