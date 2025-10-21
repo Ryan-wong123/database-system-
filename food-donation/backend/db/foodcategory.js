@@ -1,7 +1,7 @@
 const pgPool = require("./index");
 
 async function getFoodCategories(){
-    const sql = `SELECT * FROM v_food_category`;
+    const sql = `SELECT to_jsonb(t) AS category FROM (SELECT * FROM v_food_category) as t`;
     try{
         const { rows } = await pgPool.query(sql);
         return rows;
@@ -12,7 +12,7 @@ async function getFoodCategories(){
 }
 
 async function searchFoodCategory(name){
-    const sql = `SELECT * FROM v_food_category where name like '$1%' `;
+    const sql = `SELECT to_jsonb(t) AS category FROM ( SELECT * FROM v_food_category where name like '$1%') as t `;
     const values = [name];
     try{
         const { rows } = await pgPool.query(sql, values);

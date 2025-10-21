@@ -6,6 +6,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/auth");
 const foodItemRoutes = require("./routes/fooditem");
 const foodCategoryRoutes = require("./routes/foodcategory");
+const donationRoutes = require("./routes/donation");
 require("dotenv").config();
 const Queries = require("./db/queries");
 const app = express();
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/fooditem", foodItemRoutes);
 app.use("/foodcategory", foodCategoryRoutes);
+app.use("/donation", donationRoutes)
 // -----------------------
 // MongoDB Connection
 // -----------------------

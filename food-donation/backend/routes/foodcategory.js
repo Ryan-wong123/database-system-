@@ -4,8 +4,7 @@ const { getFoodCategories, searchFoodCategory, addFoodCategory } = require("../d
 
 
 
-//Get food items
-//http://127.0.0.1:8000/fooditem/list
+//Get food category
 router.get("/list", async(req, res)=>{
     try{
         const rows = await getFoodCategories();
@@ -17,8 +16,8 @@ router.get("/list", async(req, res)=>{
 })
 
 
-//http://127.0.0.1:8000/fooditem/list/2
-router.get("/list/:id", async(req, res)=>{
+
+router.get("/list/:name", async(req, res)=>{
     try{
         const name = req.params.name;
         const rows = await searchFoodCategory(name);
@@ -38,7 +37,7 @@ router.get("/list/:id", async(req, res)=>{
         }
 })
 
-//Create Food Item
+
 router.post("/create", async (req, res) => {
   try {
     const category = await addFoodCategory(req.body);
