@@ -44,10 +44,14 @@ export const DonationAPI = {
 export const InventoryAPI = {
   list: (params) => api.get('/inventory', { params }),
   getNearingExpiry: () => api.get('/inventory/nearing-expiry'),
-  updateFood: (itemId, body) => api.patch(`/api/admin/food/${itemId}`, body),
+  updateFood: (itemId, body) => api.patch(`/admin/food/${itemId}`, body),
 };
 export const AdminAPI = {
   list: () => api.get('/admin'),
+  blist: () => api.get("/admin/bookings"), 
+  categorieslist: () => api.get('/admin/categories'),
+  adminList: (params) => api.get('/bookings/admin', { params }), 
+  updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
 }
 
 export const BookingAPI = {
@@ -55,8 +59,6 @@ export const BookingAPI = {
   create: (payload) => api.post('/bookings', payload),
   myBookings: () => api.get('/bookings/me'),
   availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),
-  adminList: (params) => api.get('/bookings/admin', { params }), 
-  updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
 };
 
 export const LocationsAPI = {
@@ -67,7 +69,7 @@ export const LocationsAPI = {
 
 
 export const CategoriesAPI = {
-  list: () => api.get('/categories'),             
+  list: () => api.get('/categories'),          
 };
 
 export const DietaryAPI = {
