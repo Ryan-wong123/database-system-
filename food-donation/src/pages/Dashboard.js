@@ -102,7 +102,7 @@ const toCategoryOptions = (raw) => {
 export default function Dashboard() {
   // Data
   const locations  = UseFetchData(() => API.LocationsAPI.list(), []);
-  const categories = UseFetchData(() => API.CategoriesAPI.list(), []);
+  const categories = UseFetchData(() => API.AdminAPI.categorieslist(), []);
 
   // Refetch inventory after save
   const [stockTick, setStockTick] = useState(0);
@@ -123,7 +123,7 @@ export default function Dashboard() {
     let alive = true;
     (async () => {
       try {
-        const res = await API.BookingAPI.list();
+        const res = await API.AdminAPI.blist();
         const raw =
           Array.isArray(res?.data?.data) ? res.data.data :
           Array.isArray(res?.data)       ? res.data :
@@ -152,7 +152,7 @@ export default function Dashboard() {
     });
 
     try {
-      await API.BookingAPI.updateStatus(bookingId, { status: nextStatus });
+      await API.AdminAPI.updateStatus(bookingId, { status: nextStatus });
       // clear optimistic flag
       setBookings((prev) => ({
         data: (prev?.data || []).map((b) =>
@@ -164,7 +164,7 @@ export default function Dashboard() {
       alert('Could not update booking status.');
       // reload bookings to ensure accuracy
       try {
-        const res = await API.BookingAPI.list();
+        const res = await API.AdminAPI.blist();
         const raw =
           Array.isArray(res?.data?.data) ? res.data.data :
           Array.isArray(res?.data)       ? res.data :
@@ -267,22 +267,34 @@ export default function Dashboard() {
 
   /* ───────────────────────────── Grouped Inventory ───────────────────────────── */
   const groupedStock = useMemo(() => {
-    const items = stock.data?.items || [];
-    const map = new Map();
-    for (const it of items) {
-      const key = it.location_id || 'unknown';
-      if (!map.has(key)) {
-        map.set(key, {
-          location_id: key,
-          location_name: it.location_name || locationName(key),
-          items: [],
-        });
-      }
-      map.get(key).items.push(it);
-    }
-    return Array.from(map.values());
-  }, [stock.data, locationOptions]);
+   const rows = Array.isArray(stock?.data?.data)
+     ? stock.data.data
+     : Array.isArray(stock?.data)
+     ? stock.data
+     : [];
 
+   // normalize common column names from admin_list_inventory()
+   const items = rows.map(r => ({
+     item_id:       r.food_item_id ?? r.item_id ?? r.id,
+     lot_id:        r.lot_id ?? null,
+     name:          r.food_name ?? r.name ?? 'Unknown',
+     category:      r.category ?? r.category_name ?? '—',
+     qty:           r.qty ?? r.quantity ?? 0,
+     expiry_date:   r.expiry_date ?? null,
+     location_id:   r.location_id ?? null,
+     location_name: r.location_name ?? r.location ?? (r.location_id ? locationName(r.location_id) : 'Unknown'),
+   }));
+
+   const map = new Map();
+   for (const it of items) {
+     const key = it.location_id ?? 'unknown';
+     if (!map.has(key)) {
+       map.set(key, { location_id: key, location_name: it.location_name || locationName(key), items: [] });
+     }
+     map.get(key).items.push(it);
+   }
+   return Array.from(map.values());
+ }, [stock?.data, locationOptions]);
   /* ───────────────────────────── Render ───────────────────────────── */
   return (
     <div className="d-grid gap-4">
@@ -324,7 +336,7 @@ export default function Dashboard() {
                         onChange={async (e) => {
                           const newStatus = e.target.value;
                           try {
-                            await API.BookingAPI.updateStatus(b.booking_id, { status: newStatus });
+                            await API.AdminAPI.updateStatus(b.booking_id, { status: newStatus });
                             setBookings((prev) => ({
                               data: (prev.data || []).map((x) =>
                                 x.booking_id === b.booking_id ? { ...x, status: newStatus } : x
