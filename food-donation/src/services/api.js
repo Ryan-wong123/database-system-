@@ -1,4 +1,5 @@
 import axios from 'axios';
+import DonationHistory from '../pages/DonationHistory';
 
 const api = axios.create({
   baseURL: '',
@@ -21,7 +22,7 @@ api.interceptors.request.use((config) => {
   if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`;
 
   const method = (config.method || 'get').toLowerCase();
-  if (['post','put','patch','delete'].includes(method)) {
+  if (['post', 'put', 'patch', 'delete'].includes(method)) {
     config.headers['Idempotency-Key'] = uuid();
   }
   config.headers['X-Correlation-Id'] = uuid();
@@ -37,7 +38,7 @@ export const AuthAPI = {
 export const DonationAPI = {
   createDonation: (payload) => api.post('/donations', payload),
   listRecent: ({ limit = 10 } = {}) => api.get('/donations', { params: { limit } }),
-  myDonations: () => api.get('/donations/me'), // added
+  DonationHistory: (userId) => api.get(`/donations/history/${userId}`),
 };
 
 
@@ -55,10 +56,12 @@ export const AdminAPI = {
 }
 
 export const BookingAPI = {
-  list: () => api.get("/admin/bookings"),  
+  list: () => api.get("/admin/bookings"),
   create: (payload) => api.post('/bookings', payload),
   myBookings: () => api.get('/bookings/me'),
   availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),
+  adminList: (params) => api.get('/bookings/admin', { params }),
+  updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
 };
 
 export const LocationsAPI = {
@@ -73,7 +76,7 @@ export const CategoriesAPI = {
 };
 
 export const DietaryAPI = {
-  list: () => api.get('/dietary-restrictions'),    
+  list: () => api.get('/dietary-restrictions'),
 };
 export const IncomeGroupAPI = {
   list: () => api.get('/income-groups'),
