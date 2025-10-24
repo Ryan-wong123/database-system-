@@ -75,58 +75,58 @@ router.post("/create", async (req, res) => {
   }
 });
 
-// router.put('/fooditems/:id', async (req, res) => {
-//   try{
-//   const id = Number(req.params.id);
-//   if (!Number.isInteger(id)) {
-//     // surface a clear 400-style error to the caller
-//     const e = new Error(`Invalid id: ${id}`);
-//     e.status = 400;
-//     throw e;
-//   }
-//   const item = await getFoodItem(id);
+router.put('/fooditems/:id', async (req, res) => {
+  try{
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    // surface a clear 400-style error to the caller
+    const e = new Error(`Invalid id: ${id}`);
+    e.status = 400;
+    throw e;
+  }
+  const item = await getFoodItem(id);
 
-//   //no result
-//   if (!item){
-//       return res.status(404).json({ ok: false, error: "Not found" });
-//   }
+  //no result
+  if (!item){
+      return res.status(404).json({ ok: false, error: "Not found" });
+  }
 
-//   const { name, category_id, unit_id, ingredients, diet_ids } = req.body;
-//   // 2. Compare values (lightweight equality check)
-//   const noChange =
-//     item.name === name &&
-//     item.category_id === category_id &&
-//     item.unit_id === unit_id &&
-//     item.ingredients === ingredients &&
-//     JSON.stringify(item.diet_ids?.sort()) === JSON.stringify((diet_ids ?? []).sort());
+  const { name, category_id, unit_id, ingredients, diet_ids } = req.body;
+  // 2. Compare values (lightweight equality check)
+  const noChange =
+    item.name === name &&
+    item.category_id === category_id &&
+    item.unit_id === unit_id &&
+    item.ingredients === ingredients &&
+    JSON.stringify(item.diet_ids?.sort()) === JSON.stringify((diet_ids ?? []).sort());
 
-//   if (noChange){
-//     return res.status(200).json({ ok: false, message: 'No changes detected' });
-//   }
+  if (noChange){
+    return res.status(200).json({ ok: false, message: 'No changes detected' });
+  }
 
-//   // 3. Proceed with update
-//   const rows = await updateFoodItem(id, req.body);
-//   return res.status(200).json({ ok: true, fooditem: rows[0].fooditem });
-//   }
-//   catch(err){
-//       // Map common Postgres error codes
-//     if (err.code === "23503") {
-//       // Fkey violation
-//       return res
-//         .status(400)
-//         .json({ ok: false, error: "Invalid reference: " + err.detail });
-//     }
-//     if (err.code === "23505") {
-//       // Unique constraint violation if have
-//       return res
-//         .status(409)
-//         .json({ ok: false, error: "Duplicate record." });
-//     }
+  // 3. Proceed with update
+  const rows = await updateFoodItem(id, req.body);
+  return res.status(200).json({ ok: true, fooditem: rows[0].fooditem });
+  }
+  catch(err){
+      // Map common Postgres error codes
+    if (err.code === "23503") {
+      // Fkey violation
+      return res
+        .status(400)
+        .json({ ok: false, error: "Invalid reference: " + err.detail });
+    }
+    if (err.code === "23505") {
+      // Unique constraint violation if have
+      return res
+        .status(409)
+        .json({ ok: false, error: "Duplicate record." });
+    }
 
-//     // Generic error
-//     console.error("DB error:", err);
-//     return res.status(500).json({ ok: false, error: err.message });
-// }
-// });
+    // Generic error
+    console.error("DB error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+}
+});
 
 module.exports = router;

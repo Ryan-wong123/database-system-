@@ -12,7 +12,7 @@ async function getFoodCategories(){
 }
 
 async function searchFoodCategory(name){
-    const sql = `SELECT to_jsonb(t) AS category FROM ( SELECT * FROM v_food_category where name ILIKE $1 || '%') as t `;
+    const sql = `SELECT to_jsonb(t) AS category FROM ( SELECT * FROM v_food_category where name like '$1%') as t `;
     const values = [name];
     try{
         const { rows } = await pgPool.query(sql, values);
@@ -37,19 +37,4 @@ async function addFoodCategory(payload) {
     }
 }
 
-async function updateFoodCategory(id, payload) {
-    const sql = `SELECT to_jsonb(t) AS category FROM update_food_category($1, $2) AS t`;
-    const values = [
-        id,
-        payload.name
-    ];
-    
-    try {
-        const { rows } = await pgPool.query(sql, values);
-        return rows[0]?.category;
-    } catch (err) {
-        throw err;
-    }
-}
-
-module.exports = {getFoodCategories, searchFoodCategory, addFoodCategory, updateFoodCategory};
+module.exports = {getFoodCategories, searchFoodCategory, addFoodCategory};

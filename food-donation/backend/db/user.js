@@ -5,37 +5,23 @@ const pgPool = require("./index");
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-// small helper to keep token creation consistent
-function signToken(user) {
-  return jwt.sign({ id: user.user_id, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
-}
-
 async function registerUser(payload) {
-  const { name, email, password, role } = payload;
+  const { name, email, password, role, household_head_name, income_group, diet_flags } = payload;
   const password_hash = await bcrypt.hash(password, 10);
 
-  // Expect register_user(name, email, pw_hash, role) to insert and return at least user_id, email, role
-  const { rows, rowCount } = await pgPool.query(
-    "SELECT * FROM register_user($1,$2,$3,$4)",
-    [name, email, password_hash, role]
-  );
-
-  if (rowCount === 0) {
-    throw new Error("Registration failed");
+  if (role === "donee") {
+    const result = await pgPool.query(
+      "SELECT * FROM register_user_donee($1,$2,$3,$4,$5,$6,$7)",
+      [name, email, password_hash, role, household_head_name, income_group, diet_flags]
+    );
+    return result.rows[0];
+  } else {
+    const result = await pgPool.query(
+      "SELECT * FROM register_user($1,$2,$3,$4)",
+      [name, email, password_hash, role]
+    );
+    return result.rows[0];
   }
-
-  // If your register_user() returns different column names, map them here
-  const user = rows[0];
-
-  // Fallback in case your SQL function doesn’t return user_id/role/email:
-  // const { rows: r2 } = await pgPool.query(
-  //   "SELECT user_id, email, role FROM Users WHERE email = $1",
-  //   [email]
-  // );
-  // const user = r2[0];
-
-  const token = signToken(user);
-  return { user_id: user.user_id, email: user.email, role: user.role, token };
 }
 
 async function loginUser(email, password) {
@@ -46,7 +32,7 @@ async function loginUser(email, password) {
   const match = await bcrypt.compare(password, user.password_hash);
   if (!match) throw new Error("Invalid credentials");
 
-  const token = signToken(user);
+  const token = jwt.sign({ id: user.user_id, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
   return { user_id: user.user_id, email: user.email, role: user.role, token };
 }
 

@@ -11,8 +11,6 @@ const adminRoutes = require("./routes/admin");
 const dietRoutes = require('./routes/diet');
 const unitRoutes = require('./routes/unit');
 const miscRoutes = require("./routes/misc");
-const householdRoutes = require("./routes/household");
-
 
 require("dotenv").config();
 const app = express();
@@ -27,17 +25,14 @@ app.use((req, _res, next) => {
 });
 
 app.use("/auth", authRoutes);
-app.use("/api/fooditem", foodItemRoutes);
-app.use("/api/foodcategory", foodCategoryRoutes);
+app.use("/fooditem", foodItemRoutes);
+app.use("/foodcategory", foodCategoryRoutes);
 app.use("/donation", donationRoutes)
 app.use("/admin", adminRoutes)
 app.use("/api/admin", adminRoutes);
 app.use('/diet', dietRoutes);
 app.use('/unit', unitRoutes);
 app.use("/", miscRoutes);
-app.use("/api/diet", dietRoutes);
-app.use("/households", householdRoutes);
-
 
 // app.use((req, _res, next) => {
 //   console.log(`${req.method} ${req.originalUrl}`);
