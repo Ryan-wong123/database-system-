@@ -63,6 +63,12 @@ export const BookingAPI = {
   adminList: (params) => api.get('/bookings/admin', { params }),
   updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
 };
+export const HouseholdAPI = {
+  me: () => api.get('/households/me'),
+  create: () => api.post('/households'),
+  join: (pin) => api.post('/households/join', { pin }),
+  leave: () => api.delete('/households/me'),
+};
 
 export const LocationsAPI = {
   list: () => api.get('/locations'),

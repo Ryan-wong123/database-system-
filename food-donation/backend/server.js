@@ -9,6 +9,7 @@ const foodCategoryRoutes = require("./routes/foodcategory");
 const donationRoutes = require("./routes/donation");
 const miscRoutes = require("./routes/misc");
 const adminRoutes = require("./routes/admin");
+const householdRoutes = require("./routes/household");
 
 require("dotenv").config();
 const app = express();
@@ -22,6 +23,7 @@ app.use("/foodcategory", foodCategoryRoutes);
 app.use("/donation", donationRoutes)
 app.use("/admin", adminRoutes)
 app.use("/api/admin", adminRoutes);
+app.use("/households", householdRoutes);
 
 app.use((req, _res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);
