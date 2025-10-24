@@ -36,19 +36,19 @@ export const AuthAPI = {
 };
 
 export const DonationAPI = {
-  createDonation: (payload) => api.post('/donation', payload),
-  listRecent: ({ limit = 10 } = {}) => api.get('/donation', { params: { limit } }),
+  createDonation: (payload) => api.post('/donation/create', payload),
+  listRecent: ({ limit = 10 } = {}) => api.get('/donation/list', { params: { limit } }),
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
   list:() => api.get('/donation/list'),
   approve: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
 };
-
 
 export const InventoryAPI = {
   list: (params) => api.get('/inventory', { params }),
   getNearingExpiry: () => api.get('/inventory/nearing-expiry'),
   updateFood: (itemId, body) => api.patch(`/admin/food/${itemId}`, body),
 };
+
 export const AdminAPI = {
   list: () => api.get('/admin'),
   blist: () => api.get("/admin/bookings"), 
@@ -80,6 +80,11 @@ export const LocationsAPI = {
   updateLot: (lotId, payload) => api.patch(`/inventory/lots/${lotId}`, payload), // {location_id?, qty?, expiry_date?}
 };
 
+export const ItemsAPI = {
+  list: () => api.get('/fooditem/list'),
+  get: (id) => api.get(`/fooditem/list/${id}`),
+  create: (payload) => api.post('/fooditem/create', payload),
+};
 
 export const CategoriesAPI = {
   list:() => api.get('/api/foodcategory/list'),
@@ -98,10 +103,6 @@ export const DietAPI = {
 
 export const IncomeGroupAPI = {
   list: () => api.get('/income-groups'),
-};
-
-export const UnitsAPI = {
-  list: () => api.get('/units'),  // expects [{ id, name }]
 };
 
 export default api;
