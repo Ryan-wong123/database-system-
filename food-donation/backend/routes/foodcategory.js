@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { getFoodCategories, searchFoodCategory, addFoodCategory } = require("../db/foodcategory");
+const { getFoodCategories, searchFoodCategory, addFoodCategory, updateFoodCategory } = require("../db/foodcategory");
 
 
 
@@ -40,10 +40,48 @@ router.get("/list/:name", async(req, res)=>{
 
 router.post("/create", async (req, res) => {
   try {
-    const category = await addFoodCategory(req.body);
+    const result = await addFoodCategory(req.body);
 
-    if (category) {
+    if (result) {
       return res.status(201).json({ ok: true, category });
+    }
+    return res.status(500).json({ ok: false, error: "Insert failed" });
+
+  } catch (err) {
+    // Map common Postgres error codes
+    if (err.code === "23503") {
+      // Fkey violation
+      return res
+        .status(400)
+        .json({ ok: false, error: "Invalid reference: " + err.detail });
+    }
+    if (err.code === "23505") {
+      // Unique constraint violation if have
+      return res
+        .status(409)
+        .json({ ok: false, error: "Duplicate record." });
+    }
+
+    // Generic error
+    console.error("DB error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
+router.put("/update/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      // surface a clear 400-style error to the caller
+      const e = new Error(`Invalid id: ${id}`);
+      e.status = 400;
+      throw e;
+    }
+    const result = await updateFoodCategory(req.body);
+
+    if (result) {
+      return res.status(201).json({ ok: true, result });
     }
     return res.status(500).json({ ok: false, error: "Insert failed" });
 
