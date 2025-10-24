@@ -9,7 +9,5 @@ router.use("/unit", require("./unit"));
 router.use("/diet", require("./diet"));
 router.use("/donation", require("./donation"));
 router.use("/", require("./misc"));
-router.use("/donations", require("./donation"));
-router.use("/diet", require("./diet"));
 
 module.exports = router;
