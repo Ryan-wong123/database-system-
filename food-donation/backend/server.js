@@ -7,30 +7,42 @@ const authRoutes = require("./routes/auth");
 const foodItemRoutes = require("./routes/fooditem");
 const foodCategoryRoutes = require("./routes/foodcategory");
 const donationRoutes = require("./routes/donation");
-const miscRoutes = require("./routes/misc");
 const adminRoutes = require("./routes/admin");
+const dietRoutes = require('./routes/diet');
+const unitRoutes = require('./routes/unit');
+const miscRoutes = require("./routes/misc");
 const householdRoutes = require("./routes/household");
-const dietRoute = require("./routes/diet");
+
 
 require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 5000;
+
 app.use(cors());
 app.use(express.json());
-app.use("/", miscRoutes);
+
+app.use((req, _res, next) => {
+  console.log(`${req.method} ${req.originalUrl}`);
+  next();
+});
+
 app.use("/auth", authRoutes);
 app.use("/api/fooditem", foodItemRoutes);
 app.use("/api/foodcategory", foodCategoryRoutes);
 app.use("/donation", donationRoutes)
 app.use("/admin", adminRoutes)
 app.use("/api/admin", adminRoutes);
+app.use('/diet', dietRoutes);
+app.use('/unit', unitRoutes);
+app.use("/", miscRoutes);
+app.use("/api/diet", dietRoutes);
 app.use("/households", householdRoutes);
-app.use("/api/diet", dietRoute);
 
-app.use((req, _res, next) => {
-  console.log(`${req.method} ${req.originalUrl}`);
-  next();
-});
+
+// app.use((req, _res, next) => {
+//   console.log(`${req.method} ${req.originalUrl}`);
+//   next();
+// });
 
 app.get("/", (_req, res) => res.send("OK"));
 
