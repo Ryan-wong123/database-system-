@@ -3,20 +3,7 @@ const router = express.Router();
 const { getDiets, searchDiet, addDiet, updateDiet} = require("../db/diet");
 
 
-router.get('/list/diets', async (_req, res) => {
-  try {
-    const { rows } = await pgPool.query(
-      'SELECT diet_id, diet_flags FROM diet ORDER BY diet_flags ASC'
-    );
-    
-    console.log('Diets loaded:', rows.length);
-    
-    res.json({ ok: true, items: rows, count: rows.length });
-  } catch (err) {
-    console.error('Error fetching diets:', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
+
 //Get food category
 router.get("/list", async(req, res)=>{
     try{
