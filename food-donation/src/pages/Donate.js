@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { DonationAPI, LocationsAPI, CategoriesAPI, DietaryAPI, UnitsAPI } from '../services/api';
+import { DonationAPI, LocationsAPI, CategoriesAPI, DietAPI, UnitsAPI } from '../services/api';
 
 export default function Donate() {
   const [form, setForm] = useState({
@@ -13,7 +13,7 @@ export default function Donate() {
   // Load lists via shared hook
   const locations = UseFetchData(() => LocationsAPI.list(), []);
   const categories = UseFetchData(() => CategoriesAPI.list(), []);
-  const dietaries = UseFetchData(() => DietaryAPI.list(), []);
+  const dietaries = UseFetchData(() => DietAPI.list(), []);
   const units = UseFetchData(() => UnitsAPI.list(), []);
 
   const updateItem = (idx, key, value) => {

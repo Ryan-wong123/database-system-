@@ -28,7 +28,7 @@ router.get("/list/:name", async(req, res)=>{
         }
 
         //have result
-        res.json({ ok: true, item: rows[0] });
+        res.json({ ok: true, item: rows });
 
         //some error
         } catch (err) {
@@ -43,7 +43,7 @@ router.post("/create", async (req, res) => {
     const result = await addFoodCategory(req.body);
 
     if (result) {
-      return res.status(201).json({ ok: true, category });
+      return res.status(201).json({ ok: true, result });
     }
     return res.status(500).json({ ok: false, error: "Insert failed" });
 
@@ -78,12 +78,12 @@ router.put("/update/:id", async (req, res) => {
       e.status = 400;
       throw e;
     }
-    const result = await updateFoodCategory(req.body);
-
+    const result = await updateFoodCategory(id,req.body);
+    console.log(result);
     if (result) {
       return res.status(201).json({ ok: true, result });
     }
-    return res.status(500).json({ ok: false, error: "Insert failed" });
+    return res.status(500).json({ ok: false, error: "Insert failed. Please ensure the food category exists" });
 
   } catch (err) {
     // Map common Postgres error codes

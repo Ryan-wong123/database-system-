@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
 import * as API from '../services/api';
+import CatalogTab from '../components/CatalogTab';
+import DonationApprovalTab from '../components/DonationApprovalTab';
 
 function StatusPill({ value }) {
   const cls =
@@ -13,7 +15,6 @@ function StatusPill({ value }) {
   return <span className={`badge ${cls}`}>{value}</span>;
 }
 const BOOKING_STATUSES = ['pending', 'confirmed', 'rejected'];
-
 /* ───────────────────────────── Dates (timezone-safe) ───────────────────────────── */
 // Extract a pure YYYY-MM-DD from many shapes without timezone math
 const pickISODate = (v) => {
@@ -100,6 +101,7 @@ const toCategoryOptions = (raw) => {
 };
 
 export default function Dashboard() {
+  const [tab, setTab] = useState('admin');
   // Data
   const locations  = UseFetchData(() => API.LocationsAPI.list(), []);
   const categories = UseFetchData(() => API.AdminAPI.categorieslist(), []);
@@ -296,211 +298,240 @@ export default function Dashboard() {
    return Array.from(map.values());
  }, [stock?.data, locationOptions]);
   /* ───────────────────────────── Render ───────────────────────────── */
-  return (
-    <div className="d-grid gap-4">
-      <h1 className="h4">Admin Dashboard</h1>
+return (
+  <div className="d-grid gap-4">
+    {/* Tabs */}
+    <ul className="nav nav-tabs">
+      <li className="nav-item">
+        <button className={`nav-link ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>
+          Admin Dashboard
+        </button>
+      </li>
+      <li className="nav-item">
+        <button className={`nav-link ${tab === 'catalog' ? 'active' : ''}`} onClick={() => setTab('catalog')}>
+          Catalog (Categories & Diets)
+        </button>
+      </li>
+      <li className="nav-item">
+        <button className={`nav-link ${tab === 'donations' ? 'active' : ''}`} onClick={() => setTab('donations')}>
+          Donation Approval
+        </button>
+      </li>
+    </ul>
 
-      {/* === Bookings === */}
-      <div className="card shadow-sm">
-        <div className="card-body d-grid gap-3">
-          <h2 className="h5 mb-0">Manage Bookings</h2>
-          <div className="table-responsive">
-            <table className="table align-middle">
-              <thead>
-                <tr>
-                  <th>Booking ID</th>
-                  <th>Household</th>
-                  <th>Location</th>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingBookings ? (
-                  <tr><td colSpan={7}>Loading…</td></tr>
-                ) : (bookings.data || []).length === 0 ? (
-                  <tr><td colSpan={7} className="text-muted">No bookings found.</td></tr>
-                ) : (
-                  bookings.data.map((b) => (
-                    <tr key={b.booking_id}>
-                      <td><strong>{b.booking_id}</strong></td>
-                      <td>{b.household_name || `HH-${b.household_id}`}</td>
-                      <td>{b.location_name ?? `#${b.location_id}`}</td>
-                      <td>{new Date(b.slot_start_time).toLocaleString()}</td>
-                      <td>{new Date(b.slot_end_time).toLocaleString()}</td>
-                      <select
-                        className="form-select form-select-sm"
-                        value={b.status}
-                        onChange={async (e) => {
-                          const newStatus = e.target.value;
-                          try {
-                            await API.AdminAPI.updateStatus(b.booking_id, { status: newStatus });
-                            setBookings((prev) => ({
-                              data: (prev.data || []).map((x) =>
-                                x.booking_id === b.booking_id ? { ...x, status: newStatus } : x
-                              ),
-                            }));
-                          } catch (err) {
-                            console.error('Update booking status failed', err);
-                            alert('Could not update booking status.');
-                          }
-                        }}
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="completed">Completed</option>
-                      </select>
-
-
-                      <td>{new Date(b.created_at).toLocaleString()}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+    {/* ADMIN TAB */}
+    {tab === 'admin' && (
+      <>
+        {/* === Bookings === */}
+        <div className="card shadow-sm">
+          <div className="card-body d-grid gap-3">
+            <h2 className="h5 mb-0">Manage Bookings</h2>
+            <div className="table-responsive">
+              <table className="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Booking ID</th>
+                    <th>Household</th>
+                    <th>Location</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingBookings ? (
+                    <tr><td colSpan={7}>Loading…</td></tr>
+                  ) : (bookings.data || []).length === 0 ? (
+                    <tr><td colSpan={7} className="text-muted">No bookings found.</td></tr>
+                  ) : (
+                    bookings.data.map((b) => (
+                      <tr key={b.booking_id}>
+                        <td><strong>{b.booking_id}</strong></td>
+                        <td>{b.household_name || `HH-${b.household_id}`}</td>
+                        <td>{b.location_name ?? `#${b.location_id}`}</td>
+                        <td>{new Date(b.slot_start_time).toLocaleString()}</td>
+                        <td>{new Date(b.slot_end_time).toLocaleString()}</td>
+                        <td>
+                          <select
+                            className="form-select form-select-sm"
+                            value={b.status}
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              try {
+                                await API.AdminAPI.updateStatus(b.booking_id, { status: newStatus });
+                                setBookings((prev) => ({
+                                  data: (prev.data || []).map((x) =>
+                                    x.booking_id === b.booking_id ? { ...x, status: newStatus } : x
+                                  ),
+                                }));
+                              } catch (err) {
+                                console.error('Update booking status failed', err);
+                                alert('Could not update booking status.');
+                              }
+                            }}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="completed">Completed</option>
+                          </select>
+                        </td>
+                        <td>{new Date(b.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* === Inventory === */}
-      <div className="card shadow-sm">
-        <div className="card-body d-grid gap-3">
-          <h2 className="h5 mb-0">Inventory (Edit items & move lots)</h2>
+        {/* === Inventory === */}
+        <div className="card shadow-sm">
+          <div className="card-body d-grid gap-3">
+            <h2 className="h5 mb-0">Inventory (Edit items & move lots)</h2>
 
-          {editRow && (
-            <div className="border rounded p-3 bg-light d-grid gap-3">
-              <div className="row g-3">
-                <div className="col-md-4">
-                  <label className="form-label">Item Name</label>
-                  <input
-                    className="form-control"
-                    value={editRow.name}
-                    onChange={(e) => setEditRow({ ...editRow, name: e.target.value })}
-                  />
+            {editRow && (
+              <div className="border rounded p-3 bg-light d-grid gap-3">
+                <div className="row g-3">
+                  <div className="col-md-4">
+                    <label className="form-label">Item Name</label>
+                    <input
+                      className="form-control"
+                      value={editRow.name}
+                      onChange={(e) => setEditRow({ ...editRow, name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="col-md-3">
+                    <label className="form-label">Category</label>
+                    <select
+                      className="form-select"
+                      value={String(editRow?.category_id ?? '')}
+                      onChange={(e) =>
+                        setEditRow({ ...editRow, category_id: e.target.value === '' ? '' : Number(e.target.value) })
+                      }
+                    >
+                      <option value="">Select category</option>
+                      {categoryOptions.length === 0 ? (
+                        <option disabled value="">(No categories found)</option>
+                      ) : (
+                        categoryOptions.map((c) => (
+                          <option key={c.id} value={String(c.id)}>{c.name}</option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  {editRow.lot_id && (
+                    <>
+                      <div className="col-md-2">
+                        <label className="form-label">Qty</label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="form-control"
+                          value={editRow.qty}
+                          onChange={(e) => setEditRow({ ...editRow, qty: Number(e.target.value) })}
+                        />
+                      </div>
+
+                      <div className="col-md-3">
+                        <label className="form-label">Expiry</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={normalizeDateForEdit(editRow.expiry_date)}
+                          onChange={(e) => setEditRow({ ...editRow, expiry_date: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="col-md-4">
+                        <label className="form-label">Location</label>
+                        <select
+                          className="form-select"
+                          value={String(editRow?.location_id ?? '')}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setEditRow((r) => ({ ...r, location_id: v === '' ? '' : Number(v) }));
+                          }}
+                        >
+                          <option value="">Select location</option>
+                          {locationOptions.length === 0 ? (
+                            <option disabled value="">(No locations found)</option>
+                          ) : (
+                            locationOptions.map((x) => (
+                              <option key={x.id} value={String(x.id)}>
+                                {x.name}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                <div className="col-md-3">
-                  <label className="form-label">Category</label>
-                  <select
-                    className="form-select"
-                    value={String(editRow?.category_id ?? '')}
-                    onChange={(e) =>
-                      setEditRow({ ...editRow, category_id: e.target.value === '' ? '' : Number(e.target.value) })
-                    }
-                  >
-                    <option value="">Select category</option>
-                    {categoryOptions.length === 0 ? (
-                      <option disabled value="">(No categories found)</option>
-                    ) : (
-                      categoryOptions.map((c) => (
-                        <option key={c.id} value={String(c.id)}>{c.name}</option>
-                      ))
-                    )}
-                  </select>
+                <div className="d-flex gap-2">
+                  <button className="btn btn-primary" onClick={saveEdit}>Save</button>
+                  <button className="btn btn-outline-secondary" onClick={cancelEdit}>Cancel</button>
                 </div>
-
-                {editRow.lot_id && (
-                  <>
-                    <div className="col-md-2">
-                      <label className="form-label">Qty</label>
-                      <input
-                        type="number"
-                        min={0}
-                        className="form-control"
-                        value={editRow.qty}
-                        onChange={(e) => setEditRow({ ...editRow, qty: Number(e.target.value) })}
-                      />
-                    </div>
-
-                    <div className="col-md-3">
-                      <label className="form-label">Expiry</label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={normalizeDateForEdit(editRow.expiry_date)}
-                        onChange={(e) => setEditRow({ ...editRow, expiry_date: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">Location</label>
-                      <select
-                        className="form-select"
-                        value={String(editRow?.location_id ?? '')}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setEditRow((r) => ({ ...r, location_id: v === '' ? '' : Number(v) }));
-                        }}
-                      >
-                        <option value="">Select location</option>
-                        {locationOptions.length === 0 ? (
-                          <option disabled value="">(No locations found)</option>
-                        ) : (
-                          locationOptions.map((x) => (
-                            <option key={x.id} value={String(x.id)}>
-                              {x.name}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    </div>
-                  </>
-                )}
               </div>
+            )}
 
-              <div className="d-flex gap-2">
-                <button className="btn btn-primary" onClick={saveEdit}>Save</button>
-                <button className="btn btn-outline-secondary" onClick={cancelEdit}>Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {groupedStock.map((g) => (
-            <div key={g.location_id} className="mb-3">
-              <div className="d-flex justify-content-between align-items-baseline">
-                <h3 className="h6 mb-2">{g.location_name}</h3>
-                <span className="badge text-bg-secondary">
-                  {g.items.length} item{g.items.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="table-responsive">
-                <table className="table align-middle">
-                  <thead>
-                    <tr>
-                      <th>Item</th><th>Category</th><th>Qty</th><th>Expiry</th><th style={{ width: 160 }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.items.map((it) => (
-                      <tr key={`${it.item_id}-${it.lot_id || it.location_id}`}>
-                        <td>{it.name}</td>
-                        <td>{it.category || '—'}</td>
-                        <td>{it.qty}</td>
-                        <td>{formatDateForView(it.expiry_date)}</td>
-                        <td>
-                          <button className="btn btn-sm btn-outline-primary" onClick={() => startEdit(it)}>
-                            Edit
-                          </button>
-                        </td>
+            {groupedStock.map((g) => (
+              <div key={g.location_id} className="mb-3">
+                <div className="d-flex justify-content-between align-items-baseline">
+                  <h3 className="h6 mb-2">{g.location_name}</h3>
+                  <span className="badge text-bg-secondary">
+                    {g.items.length} item{g.items.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="table-responsive">
+                  <table className="table align-middle">
+                    <thead>
+                      <tr>
+                        <th>Item</th><th>Category</th><th>Qty</th><th>Expiry</th><th style={{ width: 160 }}>Actions</th>
                       </tr>
-                    ))}
-                    {g.items.length === 0 && (
-                      <tr><td colSpan={5} className="text-muted">No items.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {g.items.map((it) => (
+                        <tr key={`${it.item_id}-${it.lot_id || it.location_id}`}>
+                          <td>{it.name}</td>
+                          <td>{it.category || '—'}</td>
+                          <td>{it.qty}</td>
+                          <td>{formatDateForView(it.expiry_date)}</td>
+                          <td>
+                            <button className="btn btn-sm btn-outline-primary" onClick={() => startEdit(it)}>
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {g.items.length === 0 && (
+                        <tr><td colSpan={5} className="text-muted">No items.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {!stock.loading && (!stock.data?.items || stock.data.items.length === 0) && (
-            <div className="text-muted">No stock.</div>
-          )}
+            {/* Prefer checking groupedStock */}
+            {groupedStock.length === 0 && !stock.loading && (
+              <div className="text-muted">No stock.</div>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+      </>
+    )}
+
+    {/* CATALOG TAB */}
+    {tab === 'catalog' && <CatalogTab />}
+
+    {/* DONATION TAB */}
+    {tab === 'donations' && <DonationApprovalTab />}
+  </div>
   );
 }

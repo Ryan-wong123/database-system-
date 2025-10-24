@@ -45,12 +45,12 @@ router.get("/list/:id", async (req, res) => {
 })
 
 
-router.post("/approve", async (req, res) => {
+router.post("/approve/:id", async (req, res) => {
   try {
-    const { donation_id, approve_status } = req.body;
-    const id = Number(donation_id);
-    if (!Number.isInteger(donation_id)) {
-      const e = new Error(`Invalid id: ${donation_id}`);
+    const { approve_status } = req.body;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      const e = new Error(`Invalid id: ${id}`);
       e.status = 400;
       throw e;
     }
@@ -60,10 +60,10 @@ router.post("/approve", async (req, res) => {
 
     let result
     if (approve_status == "confirmed") {
-      result = await approveDonation(donation_id);
+      result = await approveDonation(id);
     }
     else {
-      result = await cancelDonation(donation_id);
+      result = await cancelDonation(id);
     }
 
     if (result.rowCount == 0) {

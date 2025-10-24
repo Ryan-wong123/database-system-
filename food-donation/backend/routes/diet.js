@@ -83,7 +83,7 @@ router.put("/update/:id", async (req, res) => {
     if (result) {
       return res.status(201).json({ ok: true, result });
     }
-    return res.status(500).json({ ok: false, error: "Insert failed" });
+    return res.status(500).json({ ok: false, error: "Insert failed.Please ensure the diet exists" });
 
   } catch (err) {
     // Map common Postgres error codes

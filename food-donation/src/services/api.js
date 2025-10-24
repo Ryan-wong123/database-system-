@@ -39,6 +39,8 @@ export const DonationAPI = {
   createDonation: (payload) => api.post('/donation', payload),
   listRecent: ({ limit = 10 } = {}) => api.get('/donation', { params: { limit } }),
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
+  list:() => api.get('/donation/list'),
+  approve: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
 };
 
 
@@ -53,6 +55,8 @@ export const AdminAPI = {
   categorieslist: () => api.get('/admin/categories'),
   adminList: (params) => api.get('/bookings/admin', { params }), 
   updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
+  approveDonation: (payload) => api.post('/donation/approve', payload), 
+
 }
 
 export const BookingAPI = {
@@ -78,12 +82,20 @@ export const LocationsAPI = {
 
 
 export const CategoriesAPI = {
-  list: () => api.get('/categories'),          
+  list:() => api.get('/api/foodcategory/list'),
+  searchByName:(name) => api.get(`/api/foodcategory/list/${encodeURIComponent(name)}`),
+  create:(payload) => api.post('/api/foodcategory/create', payload), // { name }
+  update: (id, payload) => api.put(`/api/foodcategory/update/${id}`, payload), // { name }    
 };
 
-export const DietaryAPI = {
-  list: () => api.get('/dietary-restrictions'),
+export const DietAPI = {
+  list: () => api.get('/api/diet/list'),
+  searchByFlags:(flags) => api.get(`/api/diet/list/${encodeURIComponent(flags)}`),
+  create:(payload) => api.post('/api/diet/create', payload),          // { diet_flags }
+  update:(id, payload) => api.put(`/api/diet/update/${id}`, payload), // { diet_flags }
+
 };
+
 export const IncomeGroupAPI = {
   list: () => api.get('/income-groups'),
 };
