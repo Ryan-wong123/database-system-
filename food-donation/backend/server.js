@@ -10,6 +10,7 @@ const donationRoutes = require("./routes/donation");
 const miscRoutes = require("./routes/misc");
 const adminRoutes = require("./routes/admin");
 const householdRoutes = require("./routes/household");
+const dietRoute = require("./routes/diet");
 
 require("dotenv").config();
 const app = express();
@@ -18,12 +19,13 @@ app.use(cors());
 app.use(express.json());
 app.use("/", miscRoutes);
 app.use("/auth", authRoutes);
-app.use("/fooditem", foodItemRoutes);
-app.use("/foodcategory", foodCategoryRoutes);
+app.use("/api/fooditem", foodItemRoutes);
+app.use("/api/foodcategory", foodCategoryRoutes);
 app.use("/donation", donationRoutes)
 app.use("/admin", adminRoutes)
 app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
+app.use("/api/diet", dietRoute);
 
 app.use((req, _res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);

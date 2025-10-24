@@ -1,14 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const { getFoodCategories, searchFoodCategory, addFoodCategory, updateFoodCategory } = require("../db/foodcategory");
+const { getDiets, searchDiet, addDiet, updateDiet} = require("../db/diet");
 
 
 
 //Get food category
 router.get("/list", async(req, res)=>{
     try{
-        const rows = await getFoodCategories();
-        res.json({ ok: true, items: rows, count: rows.length });
+        const result = await getDiets();
+        res.json({ ok: true, items: result, count: result.length });
         } catch (err) {
             console.error(err);
             res.status(500).json({ ok: false, error: err.message });
@@ -20,15 +20,15 @@ router.get("/list", async(req, res)=>{
 router.get("/list/:name", async(req, res)=>{
     try{
         const name = req.params.name;
-        const rows = await searchFoodCategory(name);
+        const result = await searchDiet(name);
 
         //no result
-        if (rows.length === 0){
+        if (result.length === 0){
             return res.status(404).json({ ok: false, error: "Not found" });
         }
 
         //have result
-        res.json({ ok: true, item: rows[0] });
+        res.json({ ok: true, item: result[0] });
 
         //some error
         } catch (err) {
@@ -40,10 +40,10 @@ router.get("/list/:name", async(req, res)=>{
 
 router.post("/create", async (req, res) => {
   try {
-    const result = await addFoodCategory(req.body);
+    const result = await addDiet(req.body);
 
     if (result) {
-      return res.status(201).json({ ok: true, category });
+      return res.status(201).json({ ok: true, result });
     }
     return res.status(500).json({ ok: false, error: "Insert failed" });
 
@@ -78,7 +78,7 @@ router.put("/update/:id", async (req, res) => {
       e.status = 400;
       throw e;
     }
-    const result = await updateFoodCategory(req.body);
+    const result = await updateDiet(id, req.body);
 
     if (result) {
       return res.status(201).json({ ok: true, result });
@@ -105,5 +105,6 @@ router.put("/update/:id", async (req, res) => {
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
+
 
 module.exports = router;
