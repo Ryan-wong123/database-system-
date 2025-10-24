@@ -46,7 +46,7 @@ router.get("/list/:id", async(req, res)=>{
 })
 
 //Create Food Item
-router.post("/update", async (req, res) => {
+router.post("/create", async (req, res) => {
   try {
     const fooditem = await addFoodItem(req.body);
 
