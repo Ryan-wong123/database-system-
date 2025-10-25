@@ -10,6 +10,11 @@ const donationRoutes = require("./routes/donation");
 const miscRoutes = require("./routes/misc");
 const adminRoutes = require("./routes/admin");
 
+const { decodeToken } = require('./middleware/auth');
+app.use(decodeToken);          // must come before app.use('/households', router)
+app.use('/households', require('./routes/household'));
+
+
 require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 5000;

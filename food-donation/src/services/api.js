@@ -2,7 +2,7 @@ import axios from 'axios';
 import DonationHistory from '../pages/DonationHistory';
 
 const api = axios.create({
-  baseURL: '',
+  baseURL: 'http://localhost:8000',
   timeout: 15000,
 });
 
@@ -17,7 +17,7 @@ function uuid() {
 
 // Request interceptors: JWT + idempotency + correlation
 api.interceptors.request.use((config) => {
-  const raw = localStorage.getItem('auth:user');
+  const raw = localStorage.getItem('user');
   const auth = raw ? JSON.parse(raw) : null;
   if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`;
 
@@ -84,6 +84,13 @@ export const IncomeGroupAPI = {
 
 export const UnitsAPI = {
   list: () => api.get('/units'),  // expects [{ id, name }]
+};
+
+export const DoneeAPI = {
+  createHousehold: (data) => api.post('/households', data),
+  joinHousehold: (data) => api.post('/households/join', data),
+  getHousehold: () => api.get('/households/me'),
+  leaveHousehold: () => api.delete('/households/me'),
 };
 
 export default api;
