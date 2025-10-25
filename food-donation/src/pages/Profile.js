@@ -1,9 +1,43 @@
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { DoneeAPI } from '../services/api';
 import '../index.css';
-
 
 export default function Profile() {
   const { user } = useAuth();
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
+  const [householdName, setHouseholdName] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+
+  const handleCreateHousehold = async (e) => {
+    e.preventDefault();
+    try {
+      const { data } = await DoneeAPI.createHousehold({
+        name: householdName,
+        donee_id: user.id,
+      });
+      alert('Household created successfully!');
+      setShowCreate(false);
+    } catch (err) {
+      alert('Failed to create household.');
+    }
+  };
+
+  const handleJoinHousehold = async (e) => {
+    e.preventDefault();
+    try {
+      const { data } = await DoneeAPI.joinHousehold({
+        code: joinCode,
+        donee_id: user.id,
+      });
+      alert('Joined household successfully!');
+      setShowJoin(false);
+    } catch (err) {
+      alert('Failed to join household.');
+    }
+  };
 
   if (!user) {
     return (
@@ -12,7 +46,6 @@ export default function Profile() {
       </div>
     );
   }
-  
 
   const isDonor = user.role === 'donor';
   const isDonee = user.role === 'donee';
@@ -25,7 +58,6 @@ export default function Profile() {
         <h2 className="fw-bold mb-1">{user.email}</h2>
         <p className="text-secondary">Role: {user.role}</p>
       </div>
-
 
       {/* Donor Section */}
       {isDonor && (
@@ -93,6 +125,106 @@ export default function Profile() {
             </div>
           </div>
 
+{/* Household Section */}
+<div className="mb-4">
+  <h5 className="fw-bold mb-3">Household Management</h5>
+
+  {!user.household ? (
+    <div className="d-flex gap-2">
+      <button
+        className="btn btn-outline-primary"
+        onClick={() => {
+          setShowCreate(true);
+          setShowJoin(false); // show only Create
+        }}
+      >
+        Create Household
+      </button>
+      <button
+        className="btn btn-outline-secondary"
+        onClick={() => {
+          setShowJoin(true);
+          setShowCreate(false); // show only Join
+        }}
+      >
+        Join Household
+      </button>
+    </div>
+  ) : (
+    <div className="border rounded p-3 mt-2">
+      <p className="mb-1">
+        <strong>Household:</strong> {user.household.name}
+      </p>
+      <p className="text-muted small mb-0">
+        Members: {user.household.memberCount || 1}
+      </p>
+    </div>
+  )}
+
+  {/* Create Household Form */}
+  {showCreate && (
+    <form
+      className="mt-3 border rounded p-3"
+      onSubmit={handleCreateHousehold}
+    >
+      <div className="mb-2">
+        <label className="form-label">Household Name</label>
+        <input
+          type="text"
+          className="form-control"
+          value={householdName}
+          onChange={(e) => setHouseholdName(e.target.value)}
+          required
+        />
+      </div>
+      <div className="d-flex justify-content-between">
+        <button className="btn btn-primary" type="submit">
+          Create
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline-danger"
+          onClick={() => setShowCreate(false)}
+        >
+          Close
+        </button>
+      </div>
+    </form>
+  )}
+
+  {/* Join Household Form */}
+  {showJoin && (
+    <form
+      className="mt-3 border rounded p-3"
+      onSubmit={handleJoinHousehold}
+    >
+      <div className="mb-2">
+        <label className="form-label">Household Code</label>
+        <input
+          type="text"
+          className="form-control"
+          value={joinCode}
+          onChange={(e) => setJoinCode(e.target.value)}
+          required
+        />
+      </div>
+      <div className="d-flex justify-content-between">
+        <button className="btn btn-secondary" type="submit">
+          Join
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline-danger"
+          onClick={() => setShowJoin(false)}
+        >
+          Close
+        </button>
+      </div>
+    </form>
+  )}
+</div>
+
+          {/* Request List */}
           <h5 className="fw-bold mb-3">Recent Requests</h5>
           <ul className="list-group">
             {user.requests?.length ? (
