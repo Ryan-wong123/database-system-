@@ -1,3 +1,5 @@
+const jwt = require('jsonwebtoken');
+
 function decodeToken(req, res, next) {
   const header = req.headers.authorization;
   console.log('Authorization header:', header);
@@ -10,10 +12,12 @@ function decodeToken(req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-    console.log('Decoded JWT:', req.user);
+    console.log('Decoded JWT:', req.user); // ✅ safe to log after verifying
   } catch (err) {
     console.error('JWT decode failed:', err.message);
   }
 
   next();
 }
+
+module.exports = { decodeToken };

@@ -35,7 +35,7 @@ async function registerUser(payload) {
   // const user = r2[0];
 
   const token = signToken(user);
-  return { user_id: user.user_id, email: user.email, role: user.role, token };
+  return { user_id: user.user_id, name:user.name, email: user.email, role: user.role, token };
 }
 
 async function loginUser(email, password) {

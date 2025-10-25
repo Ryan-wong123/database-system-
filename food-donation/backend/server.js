@@ -4,8 +4,6 @@ const express = require("express");
 const mongoose = require("mongoose");
 const redis = require("redis");
 const cors = require("cors");
-
-// middleware
 const { decodeToken } = require("./middleware/auth");
 
 // routes
@@ -25,26 +23,16 @@ const PORT = process.env.PORT || 8000;
 app.use(cors());
 app.use(express.json());
 
-app.use("/", miscRoutes);
-app.use("/auth", authRoutes);
-app.use("/api/fooditem", foodItemRoutes);
-app.use("/api/foodcategory", foodCategoryRoutes);
-app.use("/donation", donationRoutes)
-app.use("/admin", adminRoutes)
-app.use("/api/admin", adminRoutes);
-app.use("/households", householdRoutes);
-app.use("/api/diet", dietRoute);
-
-// decode JWT before protected routes
+// ✅ Decode JWT BEFORE protected routes
 app.use(decodeToken);
 
-// log each request
+// ✅ Log every request (helpful for debugging)
 app.use((req, _res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);
   next();
 });
 
-// public routes
+// ----- PUBLIC ROUTES -----
 app.get("/", (_req, res) => res.send("OK"));
 app.use("/", miscRoutes);
 app.use("/auth", authRoutes);
@@ -52,20 +40,20 @@ app.use("/api/fooditem", foodItemRoutes);
 app.use("/api/foodcategory", foodCategoryRoutes);
 app.use("/api/diet", dietRoute);
 
-// protected routes (JWT required)
+// ----- PROTECTED ROUTES -----
 app.use("/donation", donationRoutes);
 app.use("/admin", adminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
 
-// connect to MongoDB
+// ----- MongoDB -----
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("✅ Connected to MongoDB Atlas"))
     .catch((err) => console.error("❌ MongoDB connection error:", err));
 }
 
-// connect to Redis
+// ----- Redis -----
 let redisClient;
 if (process.env.REDIS_URL) {
   redisClient = redis.createClient({ url: process.env.REDIS_URL });
@@ -74,11 +62,11 @@ if (process.env.REDIS_URL) {
     .catch(err => console.error("❌ Redis connection error:", err));
 }
 
-// global error handler
+// ----- Error handler -----
 app.use((err, _req, res, _next) => {
   console.error("Unhandled error:", err);
   res.status(500).json({ error: "Internal Server Error" });
 });
 
-// start server
+// ----- Start server -----
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

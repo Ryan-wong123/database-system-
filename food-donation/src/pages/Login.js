@@ -15,7 +15,7 @@ export default function Login() {
     setError('');
     try {
       const { data } = await AuthAPI.login(email, password);
-      login({ id: data.user_id, email: data.email, role: data.role, token: data.token });
+      login({ id: data.user_id, name: data.name, email: data.email, role: data.role, token: data.token });
       navigate('/');
     } catch {
       setError('Invalid credentials');
