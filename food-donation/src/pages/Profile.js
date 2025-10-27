@@ -39,6 +39,17 @@ export default function Profile() {
     }
   };
 
+  const handleLeaveHousehold = async () => {
+    try {
+      await DoneeAPI.leaveHousehold(); // calls DELETE /households/me
+      alert('You left your household successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to leave household.');
+    }
+  };
+
+
   if (!user) {
     return (
       <div className="container text-center mt-5">
@@ -54,11 +65,11 @@ export default function Profile() {
   return (
     <div className="container my-5 pt-4">
       {/* Header */}
-<div className="mb-4 border-bottom pb-3">
-  <h2 className="fw-bold mb-1">{user.name || 'Unnamed User'}</h2>
-  <p className="text-muted mb-1">{user.email}</p>
-  <p className="text-secondary">Role: {user.role}</p>
-</div>
+      <div className="mb-4 border-bottom pb-3">
+        <h2 className="fw-bold mb-1">{user.name || 'Unnamed User'}</h2>
+        <p className="text-muted mb-1">{user.email}</p>
+        <p className="text-secondary">Role: {user.role}</p>
+      </div>
 
       {/* Donor Section */}
       {isDonor && (
@@ -126,104 +137,104 @@ export default function Profile() {
             </div>
           </div>
 
-{/* Household Section */}
-<div className="mb-4">
-  <h5 className="fw-bold mb-3">Household Management</h5>
+          {/* Household Section */}
+          <div className="mb-4">
+            <h5 className="fw-bold mb-3">Household Management</h5>
 
-  {!user.household ? (
-    <div className="d-flex gap-2">
-      <button
-        className="btn btn-outline-primary"
-        onClick={() => {
-          setShowCreate(true);
-          setShowJoin(false); // show only Create
-        }}
-      >
-        Create Household
-      </button>
-      <button
-        className="btn btn-outline-secondary"
-        onClick={() => {
-          setShowJoin(true);
-          setShowCreate(false); // show only Join
-        }}
-      >
-        Join Household
-      </button>
-    </div>
-  ) : (
-    <div className="border rounded p-3 mt-2">
-      <p className="mb-1">
-        <strong>Household:</strong> {user.household.name}
-      </p>
-      <p className="text-muted small mb-0">
-        Members: {user.household.memberCount || 1}
-      </p>
-    </div>
-  )}
+            {!user.household ? (
+              <div className="d-flex gap-2">
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={() => {
+                    setShowCreate(true);
+                    setShowJoin(false); // show only Create
+                  }}
+                >
+                  Create Household
+                </button>
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => {
+                    setShowJoin(true);
+                    setShowCreate(false); // show only Join
+                  }}
+                >
+                  Join Household
+                </button>
+              </div>
+            ) : (
+              <div className="border rounded p-3 mt-2">
+                <p className="mb-1">
+                  <strong>Household:</strong> {user.household.name}
+                </p>
+                <p className="text-muted small mb-0">
+                  Members: {user.household.memberCount || 1}
+                </p>
+              </div>
+            )}
 
-  {/* Create Household Form */}
-  {showCreate && (
-    <form
-      className="mt-3 border rounded p-3"
-      onSubmit={handleCreateHousehold}
-    >
-      <div className="mb-2">
-        <label className="form-label">Household Name</label>
-        <input
-          type="text"
-          className="form-control"
-          value={householdName}
-          onChange={(e) => setHouseholdName(e.target.value)}
-          required
-        />
-      </div>
-      <div className="d-flex justify-content-between">
-        <button className="btn btn-primary" type="submit">
-          Create
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline-danger"
-          onClick={() => setShowCreate(false)}
-        >
-          Close
-        </button>
-      </div>
-    </form>
-  )}
+            {/* Create Household Form */}
+            {showCreate && (
+              <form
+                className="mt-3 border rounded p-3"
+                onSubmit={handleCreateHousehold}
+              >
+                <div className="mb-2">
+                  <label className="form-label">Household Name</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={householdName}
+                    onChange={(e) => setHouseholdName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="d-flex justify-content-between">
+                  <button className="btn btn-primary" type="submit">
+                    Create
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger"
+                    onClick={() => setShowCreate(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </form>
+            )}
 
-  {/* Join Household Form */}
-  {showJoin && (
-    <form
-      className="mt-3 border rounded p-3"
-      onSubmit={handleJoinHousehold}
-    >
-      <div className="mb-2">
-        <label className="form-label">Household Code</label>
-        <input
-          type="text"
-          className="form-control"
-          value={joinCode}
-          onChange={(e) => setJoinCode(e.target.value)}
-          required
-        />
-      </div>
-      <div className="d-flex justify-content-between">
-        <button className="btn btn-secondary" type="submit">
-          Join
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline-danger"
-          onClick={() => setShowJoin(false)}
-        >
-          Close
-        </button>
-      </div>
-    </form>
-  )}
-</div>
+            {/* Join Household Form */}
+            {showJoin && (
+              <form
+                className="mt-3 border rounded p-3"
+                onSubmit={handleJoinHousehold}
+              >
+                <div className="mb-2">
+                  <label className="form-label">Household Code</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="d-flex justify-content-between">
+                  <button className="btn btn-secondary" type="submit">
+                    Join
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger"
+                    onClick={() => setShowJoin(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
 
           {/* Request List */}
           <h5 className="fw-bold mb-3">Recent Requests</h5>
@@ -233,9 +244,8 @@ export default function Profile() {
                 <li key={i} className="list-group-item d-flex justify-content-between">
                   <span>{r.item}</span>
                   <span
-                    className={`badge ${
-                      r.status === 'Approved' ? 'bg-success' : 'bg-secondary'
-                    }`}
+                    className={`badge ${r.status === 'Approved' ? 'bg-success' : 'bg-secondary'
+                      }`}
                   >
                     {r.status}
                   </span>

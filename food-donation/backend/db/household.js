@@ -1,11 +1,13 @@
 // db/household.js
 const pgPool = require("./index");
 
-async function createAndJoinHousehold(userId) {
+// db/household.js
+async function createAndJoinHousehold(userId, name) {
   const { rows } = await pgPool.query(
-    "SELECT * FROM create_household_and_join($1)", [userId]
+    "SELECT * FROM create_household_and_join($1, $2)",
+    [userId, name]
   );
-  return rows[0]; // { household_id, household_pin }
+  return rows[0];
 }
 
 async function joinByPin(userId, pin) {
@@ -21,12 +23,17 @@ async function leaveMyHousehold(userId) {
 
 async function getMyHousehold(userId) {
   const { rows } = await pgPool.query(`
-    SELECT hm.householdmembers_id, hm.household_id, h.household_pin
+    SELECT hm.householdmembers_id, hm.household_id, h.household_pin, h.name AS household_name
     FROM HouseholdMembers hm
     JOIN Households h ON h.household_id = hm.household_id
-    WHERE hm.user_id = $1
-  `, [userId]);
+    WHERE hm.user_id = $1;
+    `, [userId]);
   return rows[0] || null;
 }
 
-module.exports = { createAndJoinHousehold, joinByPin, leaveMyHousehold, getMyHousehold };
+async function leaveMyHousehold(userId) {
+  await pgPool.query("SELECT leave_household($1)", [userId]);
+}
+
+
+module.exports = { createAndJoinHousehold, joinByPin, leaveMyHousehold, getMyHousehold, leaveMyHousehold };

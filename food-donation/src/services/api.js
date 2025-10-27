@@ -17,7 +17,7 @@ function uuid() {
 
 // Request interceptors: JWT + idempotency + correlation
 api.interceptors.request.use((config) => {
-  const raw = localStorage.getItem('user');
+  const raw = localStorage.getItem('auth:user');
   const auth = raw ? JSON.parse(raw) : null;
   if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`;
 

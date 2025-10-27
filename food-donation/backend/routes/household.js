@@ -26,7 +26,9 @@ router.get("/me", requireAuth, async (req, res) => {
 // POST /households      -> create new household and join
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const data = await createAndJoinHousehold(req.user.id);
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: "Household name required" });
+    const data = await createAndJoinHousehold(req.user.id, name);
     res.status(201).json({ data });
   } catch (e) {
     console.error(e);
