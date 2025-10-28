@@ -14,56 +14,61 @@ export default function Profile() {
   const [loadingHousehold, setLoadingHousehold] = useState(true);
 
   useEffect(() => {
-    async function fetchHousehold() {
-      try {
-        const res = await DoneeAPI.getHousehold();
-        setHousehold(res.data?.data || null);
-      } catch (err) {
-        console.error('Failed to load household:', err);
-      } finally {
-        setLoadingHousehold(false);
-      }
-    }
-    fetchHousehold();
-  }, []);
-
-  const handleCreateHousehold = async (e) => {
-    e.preventDefault();
+  async function fetchHousehold() {
     try {
-      const { data } = await DoneeAPI.createHousehold({
-        name: householdName,
-        donee_id: user.id,
-      });
-      alert('Household created successfully!');
-      setShowCreate(false);
+      const res = await DoneeAPI.getHousehold();
+      setHousehold(res.data?.data || null);
     } catch (err) {
-      alert('Failed to create household.');
+      console.error('Failed to load household:', err);
+    } finally {
+      setLoadingHousehold(false);
     }
-  };
+  }
+  fetchHousehold();
 
-  const handleJoinHousehold = async (e) => {
-    e.preventDefault();
-    try {
-      const { data } = await DoneeAPI.joinHousehold({
-        code: joinCode,
-        donee_id: user.id,
-      });
-      alert('Joined household successfully!');
-      setShowJoin(false);
-    } catch (err) {
-      alert('Failed to join household.');
-    }
-  };
+  window.fetchHousehold = fetchHousehold;
+}, []);
 
-  const handleLeaveHousehold = async () => {
-    try {
-      await DoneeAPI.leaveHousehold(); // calls DELETE /households/me
-      alert('You left your household successfully!');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to leave household.');
-    }
-  };
+const handleCreateHousehold = async (e) => {
+  e.preventDefault();
+  try {
+    await DoneeAPI.createHousehold({
+      name: householdName,
+      donee_id: user.id,
+    });
+    alert('Household created successfully!');
+    setShowCreate(false);
+
+    await window.fetchHousehold();
+  } catch (err) {
+    alert('Failed to create household.');
+  }
+};
+
+const handleJoinHousehold = async (e) => {
+  e.preventDefault();
+
+  if (!joinCode.trim()) {
+    alert('Please enter a valid household PIN.');
+    return;
+  }
+
+  try {
+    await DoneeAPI.joinHousehold({
+      pin: joinCode, // backend uses req.user.id from JWT
+    });
+
+    alert('Joined household successfully!');
+    setShowJoin(false);
+
+    // Refresh updated household info
+    await window.fetchHousehold();
+  } catch (err) {
+    console.error('Join household failed:', err);
+    alert('Failed to join household.');
+  }
+};
+
 
 
   if (!user) {
