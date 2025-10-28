@@ -31,5 +31,12 @@ async function listLocations() {
   return rows;
 }
 
+/** Units **/
+async function listUnits() {
+  const { rows } = await pgPool.query(
+    'SELECT unit_id, unit FROM foodunit ORDER BY unit ASC'
+  );
+  return rows;
+}
 
-module.exports = { listInventory, listLocations};
+module.exports = { listInventory, listLocations, listUnits};

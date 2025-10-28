@@ -36,7 +36,7 @@ export const AuthAPI = {
 };
 
 export const DonationAPI = {
-  createDonation: (payload) => api.post('/donation', payload),
+  createDonation: (payload) => api.post('/donation/create', payload),
   listRecent: ({ limit = 10 } = {}) => api.get('/donation', { params: { limit } }),
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
   list:() => api.get('/donation/list'),
@@ -101,7 +101,7 @@ export const IncomeGroupAPI = {
 };
 
 export const UnitsAPI = {
-  list: () => api.get('/units'),  // expects [{ id, name }]
+  list: () => api.get('/unit/list'),  // expects [{ id, name }]
 };
 
 export const DoneeAPI = {
