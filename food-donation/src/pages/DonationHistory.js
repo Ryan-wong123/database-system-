@@ -6,10 +6,20 @@ export default function DonationHistory() {
   const [search, setSearch] = useState('');
 
   // Get logged-in donor info
-  const { id } = JSON.parse(localStorage.getItem('auth:user') || '{}');
+  let donorId = NaN;
+  try {
+    const auth = JSON.parse(localStorage.getItem('auth:user') || 'null');
+    donorId = Number(auth?.user_id ?? auth?.id);
+  } catch (_) {
+    donorId = NaN;
+  }
+  const hasValidId = Number.isFinite(donorId);
 
   // Fetch donor’s donation history
-  const stock = UseFetchData(() => DonationAPI.DonationHistory(id), [id]);
+ const stock = UseFetchData(
+    () => (hasValidId ? DonationAPI.DonationHistory(donorId) : Promise.resolve({ data: { items: [] } })),
+    [donorId]
+  );
   const items = Array.isArray(stock.data?.items) ? stock.data.items : [];
 
   // Filter based on search query
