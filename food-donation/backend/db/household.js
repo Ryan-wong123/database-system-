@@ -12,7 +12,7 @@ async function createAndJoinHousehold(userId, name) {
 
 async function joinByPin(userId, pin) {
   const { rows } = await pgPool.query(
-    "SELECT * FROM join_household_by_pin($1,$2)", [userId, pin]
+    "SELECT * FROM join_household_by_pin($1,$2)", [userID,pin]
   );
   return rows[0]; // { household_id }
 }
