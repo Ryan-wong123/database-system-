@@ -1,16 +1,58 @@
 import { useState, useMemo } from 'react';
 import UseFetchData from '../hooks/useFetchData';
 import { DonationAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function DonationHistory() {
   const [search, setSearch] = useState('');
 
-  // Get logged-in donor info
-  const { id } = JSON.parse(localStorage.getItem('auth:user') || '{}');
+  // Use the useAuth hook properly
+  const { user } = useAuth();
 
-  // Fetch donor’s donation history
-  const stock = UseFetchData(() => DonationAPI.DonationHistory(id), [id]);
+  // Extract donor ID - check multiple sources
+  let donorId = user?.id || user?.user_id;
+
+  // Fallback: check localStorage directly and try to extract from token
+  if (!donorId) {
+    const raw = localStorage.getItem('auth:user');
+    if (raw) {
+      try {
+        const stored = JSON.parse(raw);
+        donorId = stored?.id || stored?.user_id;
+
+        // If still no ID, try to decode the JWT token
+        if (!donorId && stored?.token) {
+          try {
+            const tokenParts = stored.token.split('.');
+            if (tokenParts.length === 3) {
+              const payload = JSON.parse(atob(tokenParts[1]));
+              donorId = payload?.id || payload?.user_id || payload?.userId;
+              console.log('Extracted ID from JWT:', donorId);
+            }
+          } catch (e) {
+            console.error('Failed to decode JWT', e);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse auth:user', e);
+      }
+    }
+  }
+
+  // Debug logging
+  console.log('DonationHistory - user:', user);
+  console.log('DonationHistory - donorId:', donorId);
+
+  // Fetch donor's donation history
+  let stock = { data: null, loading: false, error: null };
+  if (donorId) {
+    stock = UseFetchData(() => DonationAPI.DonationHistory(donorId), [donorId]);
+  }
+
+  console.log('DonationHistory - stock:', stock);
+
   const items = Array.isArray(stock.data?.items) ? stock.data.items : [];
+  console.log('DonationHistory - items:', items);
 
   // Filter based on search query
   const filtered = useMemo(() => {

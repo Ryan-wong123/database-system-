@@ -131,11 +131,6 @@ async function cancelDonation(donation_id) {
     }
 }
 
-// TODO: Donation Food Query function
-async function getDonationFood(donation_id) {
-
-}
-
 // TODO: Donation Histrory Query function
 async function getDonationHistory(donor_id) {
     const sql = `
@@ -165,4 +160,4 @@ async function getDonationHistory(donor_id) {
     }
 }
 
-module.exports = { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationFood, getDonationHistory };
+module.exports = { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationHistory };
