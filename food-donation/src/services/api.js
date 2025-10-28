@@ -1,5 +1,4 @@
 import axios from 'axios';
-import DonationHistory from '../pages/DonationHistory';
 
 const api = axios.create({
   baseURL: 'http://localhost:8000',
@@ -29,6 +28,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.warn('JWT expired or invalid — logging out.');
+      localStorage.removeItem('auth:user');
+      window.location.href = '/login'; // redirect user to login page
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Endpoints
 export const AuthAPI = {
   login: (email, password) => api.post('/auth/login', { email, password }),
@@ -39,7 +50,7 @@ export const DonationAPI = {
   createDonation: (payload) => api.post('/donation/create', payload),
   listRecent: ({ limit = 10 } = {}) => api.get('/donation', { params: { limit } }),
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
-  list:() => api.get('/donation/list'),
+  list: () => api.get('/donation/list'),
   approve: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
 };
 
@@ -51,11 +62,11 @@ export const InventoryAPI = {
 };
 export const AdminAPI = {
   list: () => api.get('/admin'),
-  blist: () => api.get("/admin/bookings"), 
+  blist: () => api.get("/admin/bookings"),
   categorieslist: () => api.get('/admin/categories'),
-  adminList: (params) => api.get('/bookings/admin', { params }), 
+  adminList: (params) => api.get('/bookings/admin', { params }),
   updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
-  approveDonation: (payload) => api.post('/donation/approve', payload), 
+  approveDonation: (payload) => api.post('/donation/approve', payload),
 
 }
 
@@ -82,17 +93,17 @@ export const LocationsAPI = {
 
 
 export const CategoriesAPI = {
-  list:() => api.get('/api/foodcategory/list'),
-  searchByName:(name) => api.get(`/api/foodcategory/list/${encodeURIComponent(name)}`),
-  create:(payload) => api.post('/api/foodcategory/create', payload), // { name }
+  list: () => api.get('/api/foodcategory/list'),
+  searchByName: (name) => api.get(`/api/foodcategory/list/${encodeURIComponent(name)}`),
+  create: (payload) => api.post('/api/foodcategory/create', payload), // { name }
   update: (id, payload) => api.put(`/api/foodcategory/update/${id}`, payload), // { name }    
 };
 
 export const DietAPI = {
   list: () => api.get('/api/diet/list'),
-  searchByFlags:(flags) => api.get(`/api/diet/list/${encodeURIComponent(flags)}`),
-  create:(payload) => api.post('/api/diet/create', payload),          // { diet_flags }
-  update:(id, payload) => api.put(`/api/diet/update/${id}`, payload), // { diet_flags }
+  searchByFlags: (flags) => api.get(`/api/diet/list/${encodeURIComponent(flags)}`),
+  create: (payload) => api.post('/api/diet/create', payload),          // { diet_flags }
+  update: (id, payload) => api.put(`/api/diet/update/${id}`, payload), // { diet_flags }
 
 };
 

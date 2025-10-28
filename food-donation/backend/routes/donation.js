@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pgPool = require("../db/index");
 const jwt = require("jsonwebtoken");
-const { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationFood, getDonationHistory } = require("../db/donation");
+const { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationHistory } = require("../db/donation");
 const ALLOWED_DONATION_STATUSES = new Set(['pending', 'confirmed', 'cancelled', 'completed']);
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
@@ -36,7 +36,7 @@ router.post("/create", async (req, res) => {
     // ---- 1) Inline JWT authentication ----
     const authHeader = req.headers.authorization || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    
+
     if (!token) {
       return res.status(401).json({ ok: false, error: "Missing token" });
     }
@@ -179,6 +179,33 @@ router.post("/approve/:id", async (req, res) => {
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+router.get("/list/:id", async (req, res) => {
+  try {
+    //need to add auth logic here later
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      // surface a clear 400-style error to the caller
+      const e = new Error(`Invalid id: ${id}`);
+      e.status = 400;
+      throw e;
+    }
+    const rows = await getDonationsByAccount(id);
+
+    //no result
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Not found" });
+    }
+
+    //have result
+    res.json({ ok: true, item: rows[0] });
+
+    //some error
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+})
 
 router.get("/history/:donor_id", async (req, res) => {
   try {
