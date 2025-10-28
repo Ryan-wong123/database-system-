@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DoneeAPI } from '../services/api';
 import '../index.css';
@@ -10,6 +10,22 @@ export default function Profile() {
   const [showJoin, setShowJoin] = useState(false);
   const [householdName, setHouseholdName] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [household, setHousehold] = useState(null);
+  const [loadingHousehold, setLoadingHousehold] = useState(true);
+
+  useEffect(() => {
+    async function fetchHousehold() {
+      try {
+        const res = await DoneeAPI.getHousehold();
+        setHousehold(res.data?.data || null);
+      } catch (err) {
+        console.error('Failed to load household:', err);
+      } finally {
+        setLoadingHousehold(false);
+      }
+    }
+    fetchHousehold();
+  }, []);
 
   const handleCreateHousehold = async (e) => {
     e.preventDefault();
@@ -141,13 +157,36 @@ export default function Profile() {
           <div className="mb-4">
             <h5 className="fw-bold mb-3">Household Management</h5>
 
-            {!user.household ? (
+            {loadingHousehold ? (
+              <p className="text-muted">Loading household info...</p>
+            ) : household ? (
+              <div className="border rounded p-3 mt-2">
+                <p className="mb-1">
+                  <strong>Household:</strong> {household.household_name}
+                </p>
+                <p className="text-muted small mb-2">
+                  Household PIN: {household.household_pin}
+                </p>
+                <div className="d-flex gap-2">
+                  <button
+                    className="btn btn-outline-danger"
+                    onClick={async () => {
+                      await DoneeAPI.leaveHousehold();
+                      alert('Left household successfully');
+                      setHousehold(null);
+                    }}
+                  >
+                    Leave Household
+                  </button>
+                </div>
+              </div>
+            ) : (
               <div className="d-flex gap-2">
                 <button
                   className="btn btn-outline-primary"
                   onClick={() => {
                     setShowCreate(true);
-                    setShowJoin(false); // show only Create
+                    setShowJoin(false);
                   }}
                 >
                   Create Household
@@ -156,29 +195,17 @@ export default function Profile() {
                   className="btn btn-outline-secondary"
                   onClick={() => {
                     setShowJoin(true);
-                    setShowCreate(false); // show only Join
+                    setShowCreate(false);
                   }}
                 >
                   Join Household
                 </button>
               </div>
-            ) : (
-              <div className="border rounded p-3 mt-2">
-                <p className="mb-1">
-                  <strong>Household:</strong> {user.household.name}
-                </p>
-                <p className="text-muted small mb-0">
-                  Members: {user.household.memberCount || 1}
-                </p>
-              </div>
             )}
 
             {/* Create Household Form */}
             {showCreate && (
-              <form
-                className="mt-3 border rounded p-3"
-                onSubmit={handleCreateHousehold}
-              >
+              <form className="mt-3 border rounded p-3" onSubmit={handleCreateHousehold}>
                 <div className="mb-2">
                   <label className="form-label">Household Name</label>
                   <input
@@ -206,10 +233,7 @@ export default function Profile() {
 
             {/* Join Household Form */}
             {showJoin && (
-              <form
-                className="mt-3 border rounded p-3"
-                onSubmit={handleJoinHousehold}
-              >
+              <form className="mt-3 border rounded p-3" onSubmit={handleJoinHousehold}>
                 <div className="mb-2">
                   <label className="form-label">Household Code</label>
                   <input
