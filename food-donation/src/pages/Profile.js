@@ -82,7 +82,7 @@ export default function Profile() {
     <div className="container my-5 pt-4">
       {/* Header */}
       <div className="mb-4 border-bottom pb-3">
-        <h2 className="fw-bold mb-1">{user.name || 'Unnamed User'}</h2>
+        <h2 className="fw-bold mb-1">{user.name ? user.name : 'Unnamed User'}</h2>
         <p className="text-muted mb-1">{user.email}</p>
         <p className="text-secondary">Role: {user.role}</p>
       </div>
