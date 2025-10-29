@@ -63,23 +63,28 @@ const handleJoinHousehold = async (e) => {
   e.preventDefault();
 
   if (!joinCode.trim()) {
-    alert('Please enter a valid household PIN.');
+    alert("Please enter a valid household PIN.");
     return;
   }
 
   try {
-    await DoneeAPI.joinHousehold({
-      pin: joinCode, // backend uses req.user.id from JWT
-    });
+    const res = await DoneeAPI.joinHousehold({ pin: joinCode });
 
-    alert('Joined household successfully!');
-    setShowJoin(false);
+    if (res.data.success) {
+      alert(res.data.message || "Joined household successfully!");
+      
+      // ✅ Hide join form and clear field
+      setShowJoin(false);
+      setJoinCode("");
 
-    // Refresh updated household info
-    await window.fetchHousehold();
+      // ✅ Refresh household info
+      await window.fetchHousehold();
+    } else {
+      alert(res.data.error || "Failed to join household.");
+    }
   } catch (err) {
-    console.error('Join household failed:', err);
-    alert('Failed to join household.');
+    console.error("Join household failed:", err);
+    alert(err.response?.data?.error || "Failed to join household.");
   }
 };
 

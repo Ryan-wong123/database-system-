@@ -44,13 +44,19 @@ router.post("/join", requireAuth, async (req, res) => {
     const { pin } = req.body;
     if (!pin) return res.status(400).json({ error: "Household PIN required" });
 
-    const data = await joinByPin(req.user.id, pin);
-    res.json({ success: true, data, message: "Joined household successfully" });
+    const data = await joinByPin(req.user.user_id, pin);
+
+    if (data === "Successfully joined household") {
+      res.json({ success: true, message: data });
+    } else {
+      res.status(400).json({ error: data });
+    }
   } catch (err) {
     console.error("Join household error:", err);
     res.status(400).json({ error: "Failed to join household" });
   }
 });
+
 
 // DELETE /households/me -> leave current household
 router.delete("/me", requireAuth, async (req, res) => {
