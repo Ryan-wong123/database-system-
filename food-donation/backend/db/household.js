@@ -18,7 +18,7 @@ async function joinByPin(userId, pin) {
 }
 
 async function leaveMyHousehold(userId) {
-  await pgPool.query("SELECT leave_household($1)", [userId]);
+  await pgPool.query("SELECT sp_leave_household($1)", [userId]);
 }
 
 async function getMyHousehold(userId) {

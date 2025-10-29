@@ -5,10 +5,12 @@ const { createAndJoinHousehold, joinByPin, leaveMyHousehold, getMyHousehold } = 
 
 // very simple auth middleware: expects req.user.id, adapt to your JWT auth if needed
 function requireAuth(req, res, next) {
-  // If you already decode JWT elsewhere, reuse it.
-  // Here, read from Authorization: Bearer <token> if you have a decoder.
-  // For brevity, assume req.user is already set by a global middleware.
-  if (!req.user?.id) return res.status(401).json({ error: "Unauthorized" });
+  const uid = req.user?.id ?? req.user?.user_id;
+  if (!Number.isInteger(Number(uid))) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  // normalize for downstream:
+  req.user = { id: Number(uid), user_id: Number(uid) };
   next();
 }
 

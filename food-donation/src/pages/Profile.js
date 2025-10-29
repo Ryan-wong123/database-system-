@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { DoneeAPI } from '../services/api';
+import { DoneeAPI, BookingAPI } from '../services/api';
 import '../index.css';
 
 export default function Profile() {
@@ -12,7 +12,7 @@ export default function Profile() {
   const [joinCode, setJoinCode] = useState('');
   const [household, setHousehold] = useState(null);
   const [loadingHousehold, setLoadingHousehold] = useState(true);
-
+  const [hasBookings, setHasBookings] = useState(false);
   useEffect(() => {
   async function fetchHousehold() {
     try {
@@ -25,7 +25,21 @@ export default function Profile() {
     }
   }
   fetchHousehold();
-
+  (async () => {
+     try {
+       const resp = await BookingAPI.historyMine(); // { ok, items: [...] } or array
+       const items = Array.isArray(resp) ? resp
+                   : Array.isArray(resp?.items) ? resp.items
+                   : Array.isArray(resp?.data) ? resp.data
+                   : Array.isArray(resp?.data?.items) ? resp.data.items
+                   : [];
+       setHasBookings(items.length > 0);
+     } catch (e) {
+       // If the call fails, default to letting the backend enforce the rule later
+       setHasBookings(false);
+       console.warn('Could not load booking history; backend will enforce leave rule.', e);
+     }
+   })();
   window.fetchHousehold = fetchHousehold;
 }, []);
 
@@ -176,9 +190,19 @@ const handleJoinHousehold = async (e) => {
                   <button
                     className="btn btn-outline-danger"
                     onClick={async () => {
-                      await DoneeAPI.leaveHousehold();
-                      alert('Left household successfully');
-                      setHousehold(null);
+                      if (hasBookings) {
+                       alert('You have made a booking before, so you cannot leave this household.');
+                       return;
+                       }
+                        if (!window.confirm('Are you sure you want to leave this household?')) return;
+                         try {
+                          await DoneeAPI.leaveHousehold();
+                          alert('Left household successfully');
+                            setHousehold(null);
+                         } catch (err) {
+                           const msg = err?.response?.data?.message || err?.message || 'Failed to leave household.';
+                           alert(msg); // shows backend message like: "You cannot leave... because you have created bookings."
+                         }
                     }}
                   >
                     Leave Household

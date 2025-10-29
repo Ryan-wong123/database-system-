@@ -1,16 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import UseFetchData from '../hooks/useFetchData';
-import { BookingAPI, InventoryAPI, LocationsAPI } from '../services/api';
+import { BookingAPI, InventoryAPI, LocationsAPI, HouseholdAPI } from '../services/api';
 
 export default function Booking() {
   const [form, setForm] = useState({ location_id: '', slot_start: '', slot_end: '' });
   const [requested, setRequested] = useState([{ item_id: '', qty: 1 }]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const nav = useNavigate();
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await HouseholdAPI.me();
+        const household = res?.data?.data ?? res?.data?.household ?? res?.household ?? null;
+        if (!mounted) return;
+        if (!household) nav('/profile?reason=no-household', { replace: true });
+      } catch {
+        nav('/profile?reason=no-household', { replace: true });
+      }
+    })();
+    return () => { mounted = false; };
+  }, [nav]);
 
   const setField = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
-  // Shared hook loads
   const locations = UseFetchData(() => LocationsAPI.list(), []);
   const inventory  = UseFetchData(() => InventoryAPI.list(), []);
 
@@ -71,7 +87,11 @@ export default function Booking() {
       location_id: form.location_id.trim(),
       slot_start: new Date(form.slot_start).toISOString(),
       slot_end: new Date(form.slot_end).toISOString(),
-      requested_items: requested.map((r) => ({ item_id: r.item_id, qty: Number(r.qty) })),
+      // ✅ change: send `items` with `food_item_id`
+      items: requested.map((r) => ({
+        food_item_id: Number(r.item_id),
+        qty: Number(r.qty),
+      })),
     };
 
     setBusy(true);
@@ -88,7 +108,9 @@ export default function Booking() {
   };
 
   const locationOptions = Array.isArray(locations.data) ? locations.data : [];
-  const itemOptions = Array.isArray(inventory.data?.items) ? inventory.data.items : (Array.isArray(inventory.data) ? inventory.data : []);
+  const itemOptions =
+    Array.isArray(inventory.data?.items) ? inventory.data.items :
+    (Array.isArray(inventory.data) ? inventory.data : []);
 
   return (
     <div className="d-grid gap-3">

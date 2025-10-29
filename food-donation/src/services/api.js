@@ -4,7 +4,15 @@ const api = axios.create({
   baseURL: 'http://localhost:8000',
   timeout: 15000,
 });
-
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1];
+    const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
 // simple UUID for headers
 function uuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -20,6 +28,15 @@ api.interceptors.request.use((config) => {
   const auth = raw ? JSON.parse(raw) : null;
   if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`;
 
+  let uid = Number(auth?.user_id ?? auth?.id);
+  if (!Number.isFinite(uid) && auth?.token) {
+    const payload = decodeJwtPayload(auth.token);
+    uid = Number(payload?.user_id ?? payload?.id ?? payload?.sub);
+  }
+  if (Number.isFinite(uid)) {
+    config.headers['x-user-id'] = uid;
+  }
+
   const method = (config.method || 'get').toLowerCase();
   if (['post', 'put', 'patch', 'delete'].includes(method)) {
     config.headers['Idempotency-Key'] = uuid();
@@ -27,18 +44,6 @@ api.interceptors.request.use((config) => {
   config.headers['X-Correlation-Id'] = uuid();
   return config;
 });
-
-api.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    if (error.response?.status === 401) {
-      console.warn('JWT expired or invalid — logging out.');
-      localStorage.removeItem('auth:user');
-      window.location.href = '/login'; // redirect user to login page
-    }
-    return Promise.reject(error);
-  }
-);
 
 // Endpoints
 export const AuthAPI = {
@@ -50,7 +55,7 @@ export const DonationAPI = {
   createDonation: (payload) => api.post('/donation/create', payload),
   listRecent: ({ limit = 10 } = {}) => api.get('/donation', { params: { limit } }),
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
-  list: () => api.get('/donation/list'),
+  list:() => api.get('/donation/list'),
   approve: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
 };
 
@@ -62,17 +67,18 @@ export const InventoryAPI = {
 };
 export const AdminAPI = {
   list: () => api.get('/admin'),
-  blist: () => api.get("/admin/bookings"),
+  blist: () => api.get("/admin/bookings"), 
   categorieslist: () => api.get('/admin/categories'),
-  adminList: (params) => api.get('/bookings/admin', { params }),
+  adminList: (params) => api.get('/bookings/admin', { params }), 
   updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
-  approveDonation: (payload) => api.post('/donation/approve', payload),
+  approveDonation: (payload) => api.post('/donation/approve', payload), 
 
 }
 
 export const BookingAPI = {
+  create: (payload) => api.post('/bookings', payload).then(r => r.data),
+  historyMine: () => api.get('/bookings/history'),
   list: () => api.get("/admin/bookings"),
-  create: (payload) => api.post('/bookings', payload),
   myBookings: () => api.get('/bookings/me'),
   availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),
   adminList: (params) => api.get('/bookings/admin', { params }),
@@ -93,17 +99,17 @@ export const LocationsAPI = {
 
 
 export const CategoriesAPI = {
-  list: () => api.get('/api/foodcategory/list'),
-  searchByName: (name) => api.get(`/api/foodcategory/list/${encodeURIComponent(name)}`),
-  create: (payload) => api.post('/api/foodcategory/create', payload), // { name }
+  list:() => api.get('/api/foodcategory/list'),
+  searchByName:(name) => api.get(`/api/foodcategory/list/${encodeURIComponent(name)}`),
+  create:(payload) => api.post('/api/foodcategory/create', payload), // { name }
   update: (id, payload) => api.put(`/api/foodcategory/update/${id}`, payload), // { name }    
 };
 
 export const DietAPI = {
   list: () => api.get('/api/diet/list'),
-  searchByFlags: (flags) => api.get(`/api/diet/list/${encodeURIComponent(flags)}`),
-  create: (payload) => api.post('/api/diet/create', payload),          // { diet_flags }
-  update: (id, payload) => api.put(`/api/diet/update/${id}`, payload), // { diet_flags }
+  searchByFlags:(flags) => api.get(`/api/diet/list/${encodeURIComponent(flags)}`),
+  create:(payload) => api.post('/api/diet/create', payload),          // { diet_flags }
+  update:(id, payload) => api.put(`/api/diet/update/${id}`, payload), // { diet_flags }
 
 };
 

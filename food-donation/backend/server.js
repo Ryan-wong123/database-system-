@@ -16,6 +16,8 @@ const adminRoutes = require("./routes/admin");
 const householdRoutes = require("./routes/household");
 const dietRoute = require("./routes/diet");
 
+const bookings = require('./routes/bookings');
+const bookinghistory = require('./routes/bookinghistory');
 // app setup
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -40,6 +42,8 @@ app.use("/api/fooditem", foodItemRoutes);
 app.use("/api/foodcategory", foodCategoryRoutes);
 app.use("/api/diet", dietRoute);
 
+app.use('/bookings',bookings );
+app.use('/bookings/history', bookinghistory);
 // ----- PROTECTED ROUTES -----
 app.use("/donation", donationRoutes);
 app.use("/admin", adminRoutes);

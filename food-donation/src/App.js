@@ -14,7 +14,7 @@ import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
-
+import BookingHistory from './pages/BookingHistory';
 function ProtectedRoute({ children, roles }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -47,6 +47,11 @@ export default function App() {
     { path: '/profile',
       roles: ['admin', 'donee', 'donor'],
       element: <Profile />
+    },
+
+    { path: '/bookings/history',
+     roles: ['donee', 'admin'], 
+     element: <BookingHistory /> 
     },
 
     { path: '/admin',
