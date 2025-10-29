@@ -107,12 +107,43 @@ export default function DonationHistory() {
                 <div>
                   <strong>{it.food_name}</strong>
                   <div className="small text-muted">{it.category}</div>
+                  <div
+                    className={`badge text-uppercase mt-1 ${it.approve_status === 'pending'
+                      ? 'bg-warning text-dark'
+                      : it.approve_status === 'confirmed'
+                        ? 'bg-success'
+                        : it.approve_status === 'cancelled'
+                          ? 'bg-danger'
+                          : 'bg-secondary'
+                      }`}
+                  >
+                    {it.approve_status || 'unknown'}
+                  </div>
                 </div>
                 <div className="text-end small">
                   <div>{it.qty} {it.unit}</div>
                   <div className="text-muted">
                     Exp: {new Date(it.expiry_date).toLocaleDateString()}
                   </div>
+                  {it.approve_status === 'pending' && (
+                    <button
+                      className="btn btn-sm btn-outline-danger mt-2"
+                      onClick={async () => {
+                        if (window.confirm("Are you sure you want to cancel this donation?")) {
+                          try {
+                            await DonationAPI.cancel(it.donation_id);
+                            alert("Donation cancelled successfully!");
+                            window.location.reload();
+                          } catch (err) {
+                            console.error(err);
+                            alert("Failed to cancel donation.");
+                          }
+                        }
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
