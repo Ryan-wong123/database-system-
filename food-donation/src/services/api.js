@@ -57,6 +57,7 @@ export const DonationAPI = {
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
   list:() => api.get('/donation/list'),
   approve: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
+  cancel: (donationId) => api.post(`/donation/cancel/${donationId}`),
 };
 
 
