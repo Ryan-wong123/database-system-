@@ -12,13 +12,14 @@ async function createAndJoinHousehold(userId, name) {
 
 async function joinByPin(userId, pin) {
   const { rows } = await pgPool.query(
-    "SELECT * FROM join_household_by_pin($1,$2)", [userID,pin]
+    `SELECT join_household_by_pin($1, $2) AS status`,
+    [pin, userId]
   );
-  return rows[0]; // { household_id }
+  return rows[0].status; // e.g. "Successfully joined household"
 }
 
 async function leaveMyHousehold(userId) {
-  await pgPool.query("SELECT leave_household($1)", [userId]);
+  await pgPool.query("SELECT sp_leave_household($1)", [userId]);
 }
 
 async function getMyHousehold(userId) {
