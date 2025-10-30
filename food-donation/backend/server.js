@@ -28,12 +28,12 @@ app.use(express.json());
 app.use("/", miscRoutes);
 app.use("/auth", authRoutes);
 app.use("/api/fooditem", foodItemRoutes);
-app.use("/api/foodcategory", foodCategoryRoutes);
+app.use("/foodcategory", foodCategoryRoutes);
 app.use("/donation", donationRoutes)
 app.use("/admin", adminRoutes)
 app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
-app.use("/api/diet", dietRoute);
+app.use("/diet", dietRoute);
 
 // decode JWT before protected routes
 app.use(decodeToken);
@@ -48,9 +48,9 @@ app.use((req, _res, next) => {
 app.get("/", (_req, res) => res.send("OK"));
 app.use("/", miscRoutes);
 app.use("/auth", authRoutes);
-app.use("/api/fooditem", foodItemRoutes);
-app.use("/api/foodcategory", foodCategoryRoutes);
-app.use("/api/diet", dietRoute);
+app.use("/fooditem", foodItemRoutes);
+app.use("/foodcategory", foodCategoryRoutes);
+app.use("/diet", dietRoute);
 
 // protected routes (JWT required)
 app.use("/donation", donationRoutes);

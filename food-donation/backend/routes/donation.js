@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 const pgPool = require("../db/index");
 const jwt = require("jsonwebtoken");
-const { addDonation, getDonations } = require("../db/donation");
+const { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationHistory } = require("../db/donation");
+const ALLOWED_DONATION_STATUSES = new Set(['pending', 'confirmed', 'cancelled', 'completed']);
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
@@ -35,7 +36,7 @@ router.post("/create", async (req, res) => {
     // ---- 1) Inline JWT authentication ----
     const authHeader = req.headers.authorization || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    
+
     if (!token) {
       return res.status(401).json({ ok: false, error: "Missing token" });
     }
@@ -74,19 +75,28 @@ router.post("/create", async (req, res) => {
         if (!isFutureOrTodayISO(iso)) throw new Error(`items[${i}].expiry_date must be today or later`);
         if (!isInt(it.qty) || Number(it.qty) < 1) throw new Error(`items[${i}].qty must be >= 1`);
 
-        const hasDetails = it.name && isInt(it.category_id) && isInt(it.unit_id) && it.ingredients;
-        if (!hasDetails) {
+        // Check if existing food_item_id OR new item details
+        const hasExisting = isInt(it.food_item_id);
+        const hasNew = it.name && isInt(it.category_id) && isInt(it.unit_id) && it.ingredients;
+        
+        if (!hasExisting && !hasNew) {
           throw new Error(
-            `items[${i}] must have name, category_id, unit_id, and ingredients`
+            `items[${i}] must have either food_item_id OR (name, category_id, unit_id, ingredients)`
           );
         }
-        return { ...it, qty: Number(it.qty), expiry_date: iso };
+        
+        return { 
+          ...it, 
+          qty: Number(it.qty), 
+          expiry_date: iso,
+          food_item_id: hasExisting ? Number(it.food_item_id) : undefined
+        };
       });
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });
     }
 
-    // ---- 3) Call addDonation from db/donation.js (like foodcategory does) ----
+    // ---- 3) Call addDonation ----
     const payload = {
       donor_id: Number(donorId),
       location_id: Number(location_id),
@@ -107,20 +117,26 @@ router.post("/create", async (req, res) => {
     return res.status(500).json({ ok: false, error: "Insert failed" });
 
   } catch (err) {
-    // Map common Postgres error codes (same as foodcategory)
+    // Map common Postgres error codes
     if (err.code === "23503") {
       return res.status(400).json({ ok: false, error: "Invalid reference: " + err.detail });
     }
-    if (err.code === "23505") {
-      return res.status(409).json({ ok: false, error: "Duplicate record." });
+
+    console.error("POST /donation/create error:", err);
+    
+    // Handle our custom duplicate error (with detailed message)
+    if (err.message && err.message.includes('already exists')) {
+      return res.status(409).json({ ok: false, error: err.message });
     }
 
-    // Generic error
-    console.error("POST /donation/create error:", err);
+    // Generic database constraint violations (fallback)
+    if (err.code === "23505") {
+      return res.status(409).json({ ok: false, error: "Duplicate record detected." });
+    }
+    
     return res.status(500).json({ ok: false, error: err.message });
-  }
+}
 });
-
 // ====================
 // GET /donation/list
 // ====================
@@ -129,6 +145,128 @@ router.get("/list", async (req, res) => {
   try {
     const rows = await getDonations();
     res.json({ ok: true, items: rows, count: rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Donation Approval Status Update
+router.post("/approve/:id", async (req, res) => {
+  try {
+    const { approve_status } = req.body;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      const e = new Error(`Invalid id: ${id}`);
+      e.status = 400;
+      throw e;
+    }
+    if (!ALLOWED_DONATION_STATUSES.has(String(approve_status))) {
+      return res.status(400).json({ ok: false, error: `Invalid approve_status: ${approve_status}` });
+    }
+
+    let result
+    if (approve_status == "confirmed") {
+      result = await approveDonation(id);
+    }
+    else {
+      result = await cancelDonation(id);
+    }
+
+    if (result.rowCount == 0) {
+      return res.status(409).json({ ok: false, error: "No rows updated (already processed or not found)" });
+    }
+    else if (result) {
+      return res.status(201).json({ ok: true, result });
+    }
+    return res.status(500).json({ ok: false, error: "Update failed" });
+
+  } catch (err) {
+    // Map common Postgres error codes
+    if (err.code === "23503") {
+      // Fkey violation
+      return res
+        .status(400)
+        .json({ ok: false, error: "Invalid reference: " + err.detail });
+    }
+    // Generic error
+    console.error("DB error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Cancel donation
+router.post("/cancel/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ ok: false, error: `Invalid id: ${id}` });
+    }
+
+    const sql = `
+      UPDATE donations
+      SET approve_status = 'cancelled'
+      WHERE donation_id = $1 AND approve_status = 'pending'
+      RETURNING donation_id, approve_status;
+    `;
+    const { rows, rowCount } = await pgPool.query(sql, [id]);
+
+    if (rowCount === 0) {
+      return res.status(409).json({ ok: false, error: "Only pending donations can be cancelled or donation not found." });
+    }
+
+    return res.json({ ok: true, donation: rows[0], message: "Donation cancelled successfully." });
+  } catch (err) {
+    console.error("POST /donation/cancel error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// List donations by account ID
+router.get("/list/:id", async (req, res) => {
+  try {
+    //need to add auth logic here later
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      // surface a clear 400-style error to the caller
+      const e = new Error(`Invalid id: ${id}`);
+      e.status = 400;
+      throw e;
+    }
+    const rows = await getDonationsByAccount(id);
+
+    //no result
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Not found" });
+    }
+
+    //have result
+    res.json({ ok: true, item: rows[0] });
+
+    //some error
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+})
+
+// History of donations by donor_id
+router.get("/history/:donor_id", async (req, res) => {
+  try {
+    const donor_id = Number(req.params.donor_id);
+    if (!Number.isInteger(donor_id)) {
+      const e = new Error(`Invalid donor_id: ${donor_id}`);
+      e.status = 400;
+      throw e;
+    }
+    const rows = await getDonationHistory(donor_id);
+
+    //no result
+    if (rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Not found" });
+    }
+
+    res.json({ ok: true, items: rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: err.message });

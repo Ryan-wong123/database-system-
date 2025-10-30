@@ -27,6 +27,10 @@ async function getDonationsByAccount(donor_id) {
     }
 }
 
+/**
+ * - If item has food_item_id → Use existing food item
+ * - If item has name, category, unit, ingredients → Create new food item
+ */
 async function addDonation(payload) {
     const client = await pgPool.connect();
     
@@ -42,42 +46,81 @@ async function addDonation(payload) {
         );
         const donation_id = donationResult.rows[0].donation_id;
         
-        // 2. Create food items and donation items (always create new food items)
+        // 2. Process each donation item
         for (let i = 0; i < payload.items.length; i++) {
             const item = payload.items[i];
+            let food_item_id;
             
-            // Always create new food item
-            const foodResult = await client.query(
-                `INSERT INTO fooditems (name, category_id, unit_id, ingredients)
-                 VALUES ($1, $2, $3, $4)
-                 RETURNING food_item_id`,
-                [item.name, item.category_id, item.unit_id, item.ingredients || item.name]
-            );
-            const food_item_id = foodResult.rows[0].food_item_id;
-            
-            // Link diet restrictions if provided
-            if (item.diet_ids && Array.isArray(item.diet_ids) && item.diet_ids.length > 0) {
-                for (const diet_id of item.diet_ids) {
-                    await client.query(
-                        `INSERT INTO fooditemdiet (food_item_id, diet_id)
-                         VALUES ($1, $2)
-                         ON CONFLICT DO NOTHING`,
-                        [food_item_id, diet_id]
+            if (item.food_item_id) {
+                // CASE 1: Existing food item selected from dropdown
+                const foodCheck = await client.query(
+                    `SELECT food_item_id FROM fooditems WHERE food_item_id = $1`,
+                    [item.food_item_id]
+                );
+                
+                if (foodCheck.rows.length === 0) {
+                    throw new Error(`Item ${i + 1}: Invalid food_item_id`);
+                }
+                
+                food_item_id = item.food_item_id;
+                
+            } else if (item.name && item.category_id && item.unit_id && item.ingredients) {
+                // CASE 2: "Other" selected - create new food item
+                
+                // ✅ FIXED: Specify table aliases for all columns
+                const duplicateCheck = await client.query(
+                    `SELECT fi.food_item_id, fi.name, fc.name as category_name, fu.unit as unit_name
+                     FROM fooditems fi
+                     JOIN foodcategory fc ON fi.category_id = fc.category_id
+                     JOIN foodunit fu ON fi.unit_id = fu.unit_id
+                     WHERE LOWER(TRIM(fi.name)) = LOWER(TRIM($1))`,
+                    [item.name]
+                );
+                
+                if (duplicateCheck.rows.length > 0) {
+                    const existing = duplicateCheck.rows[0];
+                    throw new Error(
+                        `A food item named "${existing.name}" already exists (${existing.category_name}, ${existing.unit_name}). ` +
+                        `Please select it from the dropdown or use a different name.`
                     );
                 }
+                
+                // Create new food item
+                const foodResult = await client.query(
+                    `INSERT INTO fooditems (name, category_id, unit_id, ingredients)
+                     VALUES ($1, $2, $3, $4)
+                     RETURNING food_item_id`,
+                    [item.name.trim(), item.category_id, item.unit_id, item.ingredients.trim()]
+                );
+                food_item_id = foodResult.rows[0].food_item_id;
+                
+                // Link diet restrictions if provided
+                if (item.diet_ids && Array.isArray(item.diet_ids) && item.diet_ids.length > 0) {
+                    for (const diet_id of item.diet_ids) {
+                        await client.query(
+                            `INSERT INTO fooditemdiet (food_item_id, diet_id)
+                             VALUES ($1, $2)
+                             ON CONFLICT DO NOTHING`,
+                            [food_item_id, diet_id]
+                        );
+                    }
+                }
+                
+            } else {
+                throw new Error(`Item ${i + 1}: Must either select existing food item or provide name, category, unit, and ingredients`);
             }
             
-            // Create donation item
-            // normalize to YYYY-MM-DD just in case
+            // Normalize expiry date
             const isoExpiry =
             /^\d{4}-\d{2}-\d{2}$/.test(item.expiry_date)
                 ? item.expiry_date
                 : (item.expiry_date || "").replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, "$3-$2-$1");
 
+            // Create donation item
             await client.query(
-            `INSERT INTO donationitems (donation_id, food_item_id, quantity, expiry_date)
-            VALUES ($1, $2, $3, $4)`,
-            [donation_id, food_item_id, Number(item.qty), isoExpiry]
+                `INSERT INTO donationitems (donation_id, food_item_id, quantity, expiry_date)
+                 VALUES ($1, $2, $3, $4)`,
+                [donation_id, food_item_id, Number(item.qty), isoExpiry]
             );
         }
         
@@ -131,15 +174,11 @@ async function cancelDonation(donation_id) {
     }
 }
 
-// TODO: Donation Food Query function
-async function getDonationFood(donation_id) {
-
-}
-
 // TODO: Donation Histrory Query function
 async function getDonationHistory(donor_id) {
     const sql = `
     SELECT 
+    d.donation_id,
     fi.name              AS food_name,
     fc.name              AS category,
     di.quantity          AS qty,
@@ -165,4 +204,4 @@ async function getDonationHistory(donor_id) {
     }
 }
 
-module.exports = { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationFood, getDonationHistory };
+module.exports = { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationHistory };

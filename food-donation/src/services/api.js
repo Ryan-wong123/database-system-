@@ -82,17 +82,17 @@ export const LocationsAPI = {
 
 
 export const CategoriesAPI = {
-  list:() => api.get('/api/foodcategory/list'),
-  searchByName:(name) => api.get(`/api/foodcategory/list/${encodeURIComponent(name)}`),
-  create:(payload) => api.post('/api/foodcategory/create', payload), // { name }
-  update: (id, payload) => api.put(`/api/foodcategory/update/${id}`, payload), // { name }    
+  list:() => api.get('/foodcategory/list'),
+  searchByName:(name) => api.get(`/foodcategory/list/${encodeURIComponent(name)}`),
+  create:(payload) => api.post('/foodcategory/create', payload),
+  update: (id, payload) => api.put(`/foodcategory/update/${id}`, payload), 
 };
 
 export const DietAPI = {
-  list: () => api.get('/api/diet/list'),
-  searchByFlags:(flags) => api.get(`/api/diet/list/${encodeURIComponent(flags)}`),
-  create:(payload) => api.post('/api/diet/create', payload),          // { diet_flags }
-  update:(id, payload) => api.put(`/api/diet/update/${id}`, payload), // { diet_flags }
+  list: () => api.get('/diet/list'),
+  searchByFlags:(flags) => api.get(`/diet/list/${encodeURIComponent(flags)}`),
+  create:(payload) => api.post('/diet/create', payload),
+  update:(id, payload) => api.put(`/diet/update/${id}`, payload),
 
 };
 
@@ -101,7 +101,7 @@ export const IncomeGroupAPI = {
 };
 
 export const UnitsAPI = {
-  list: () => api.get('/unit/list'),  // expects [{ id, name }]
+  list: () => api.get('/unit/list'),
 };
 
 export const DoneeAPI = {
@@ -109,6 +109,13 @@ export const DoneeAPI = {
   joinHousehold: (data) => api.post('/households/join', data),
   getHousehold: () => api.get('/households/me'),
   leaveHousehold: () => api.delete('/households/me'),
+};
+
+export const FoodItemAPI = {
+  list: () => api.get('/fooditem/list'),
+  getById: (id) => api.get(`/fooditem/list/${id}`),
+  create: (payload) => api.post('/fooditem/create', payload),
+  update: (id, payload) => api.put(`/fooditem/${id}`, payload),
 };
 
 export default api;
