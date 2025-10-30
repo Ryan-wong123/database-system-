@@ -15,7 +15,7 @@ export default function Navbar() {
               <NavLink className="nav-link" to="/booking">Booking</NavLink>
             </li>
             <li className="nav-item">
-              <NavLink className="nav-link" to="/history">Donation History</NavLink>
+              <NavLink className="nav-link" to="/bookings/history">Booking History</NavLink>
             </li>
             <li className="nav-item">
               <NavLink className="nav-link" to="/inventory">Inventory</NavLink>

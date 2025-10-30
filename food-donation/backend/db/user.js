@@ -35,11 +35,18 @@ async function registerUser(payload) {
   // const user = r2[0];
 
   const token = signToken(user);
-  return { user_id: user.user_id, email: user.email, role: user.role, token };
+  return { id: user.user_id, name: user.name, email: user.email, role: user.role, token };
 }
 
 async function loginUser(email, password) {
-  const result = await pgPool.query("SELECT * FROM login_user($1)", [email]);
+  const result = await pgPool.query(
+    `SELECT user_id, name, email, password_hash, role, account_status
+    FROM Users
+    WHERE LOWER(email) = LOWER($1)
+    AND account_status = 'active'`,
+    [email]
+  );
+
   if (result.rowCount === 0) throw new Error("Invalid credentials");
 
   const user = result.rows[0];
@@ -47,7 +54,7 @@ async function loginUser(email, password) {
   if (!match) throw new Error("Invalid credentials");
 
   const token = signToken(user);
-  return { user_id: user.user_id, email: user.email, role: user.role, token };
+  return { id: user.user_id, name: user.name, email: user.email, role: user.role, token };
 }
 
 module.exports = { registerUser, loginUser };

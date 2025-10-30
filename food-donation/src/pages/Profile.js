@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { DoneeAPI } from '../services/api';
+import { DoneeAPI, BookingAPI } from '../services/api';
 import '../index.css';
 
 export default function Profile() {
@@ -10,34 +10,85 @@ export default function Profile() {
   const [showJoin, setShowJoin] = useState(false);
   const [householdName, setHouseholdName] = useState('');
   const [joinCode, setJoinCode] = useState('');
-
-  const handleCreateHousehold = async (e) => {
-    e.preventDefault();
+  const [household, setHousehold] = useState(null);
+  const [loadingHousehold, setLoadingHousehold] = useState(true);
+  const [hasBookings, setHasBookings] = useState(false);
+  useEffect(() => {
+  async function fetchHousehold() {
     try {
-      const { data } = await DoneeAPI.createHousehold({
-        name: householdName,
-        donee_id: user.id,
-      });
-      alert('Household created successfully!');
-      setShowCreate(false);
+      const res = await DoneeAPI.getHousehold();
+      setHousehold(res.data?.data || null);
     } catch (err) {
-      alert('Failed to create household.');
+      console.error('Failed to load household:', err);
+    } finally {
+      setLoadingHousehold(false);
     }
-  };
+  }
+  fetchHousehold();
+  (async () => {
+     try {
+       const resp = await BookingAPI.historyMine(); // { ok, items: [...] } or array
+       const items = Array.isArray(resp) ? resp
+                   : Array.isArray(resp?.items) ? resp.items
+                   : Array.isArray(resp?.data) ? resp.data
+                   : Array.isArray(resp?.data?.items) ? resp.data.items
+                   : [];
+       setHasBookings(items.length > 0);
+     } catch (e) {
+       // If the call fails, default to letting the backend enforce the rule later
+       setHasBookings(false);
+       console.warn('Could not load booking history; backend will enforce leave rule.', e);
+     }
+   })();
+  window.fetchHousehold = fetchHousehold;
+}, []);
 
-  const handleJoinHousehold = async (e) => {
-    e.preventDefault();
-    try {
-      const { data } = await DoneeAPI.joinHousehold({
-        code: joinCode,
-        donee_id: user.id,
-      });
-      alert('Joined household successfully!');
+const handleCreateHousehold = async (e) => {
+  e.preventDefault();
+  try {
+    await DoneeAPI.createHousehold({
+      name: householdName,
+      donee_id: user.id,
+    });
+    alert('Household created successfully!');
+    setShowCreate(false);
+
+    await window.fetchHousehold();
+  } catch (err) {
+    alert('Failed to create household.');
+  }
+};
+
+const handleJoinHousehold = async (e) => {
+  e.preventDefault();
+
+  if (!joinCode.trim()) {
+    alert("Please enter a valid household PIN.");
+    return;
+  }
+
+  try {
+    const res = await DoneeAPI.joinHousehold({ pin: joinCode });
+
+    if (res.data.success) {
+      alert(res.data.message || "Joined household successfully!");
+      
+      // ✅ Hide join form and clear field
       setShowJoin(false);
-    } catch (err) {
-      alert('Failed to join household.');
+      setJoinCode("");
+
+      // ✅ Refresh household info
+      await window.fetchHousehold();
+    } else {
+      alert(res.data.error || "Failed to join household.");
     }
-  };
+  } catch (err) {
+    console.error("Join household failed:", err);
+    alert(err.response?.data?.error || "Failed to join household.");
+  }
+};
+
+
 
   if (!user) {
     return (
@@ -55,7 +106,8 @@ export default function Profile() {
     <div className="container my-5 pt-4">
       {/* Header */}
       <div className="mb-4 border-bottom pb-3">
-        <h2 className="fw-bold mb-1">{user.email}</h2>
+        <h2 className="fw-bold mb-1">{user.name ? user.name : 'Unnamed User'}</h2>
+        <p className="text-muted mb-1">{user.email}</p>
         <p className="text-secondary">Role: {user.role}</p>
       </div>
 
@@ -125,104 +177,122 @@ export default function Profile() {
             </div>
           </div>
 
-{/* Household Section */}
-<div className="mb-4">
-  <h5 className="fw-bold mb-3">Household Management</h5>
+          {/* Household Section */}
+          <div className="mb-4">
+            <h5 className="fw-bold mb-3">Household Management</h5>
 
-  {!user.household ? (
-    <div className="d-flex gap-2">
-      <button
-        className="btn btn-outline-primary"
-        onClick={() => {
-          setShowCreate(true);
-          setShowJoin(false); // show only Create
-        }}
-      >
-        Create Household
-      </button>
-      <button
-        className="btn btn-outline-secondary"
-        onClick={() => {
-          setShowJoin(true);
-          setShowCreate(false); // show only Join
-        }}
-      >
-        Join Household
-      </button>
-    </div>
-  ) : (
-    <div className="border rounded p-3 mt-2">
-      <p className="mb-1">
-        <strong>Household:</strong> {user.household.name}
-      </p>
-      <p className="text-muted small mb-0">
-        Members: {user.household.memberCount || 1}
-      </p>
-    </div>
-  )}
+            {loadingHousehold ? (
+              <p className="text-muted">Loading household info...</p>
+            ) : household ? (
+              <div className="border rounded p-3 mt-2">
+                <p className="mb-1">
+                  <strong>Household:</strong> {household.household_name}
+                </p>
+                <p className="text-muted small mb-2">
+                  Household PIN: {household.household_pin}
+                </p>
+                <div className="d-flex gap-2">
+                  <button
+                    className="btn btn-outline-danger"
+                    onClick={async () => {
+                      if (hasBookings) {
+                       alert('You have made a booking before, so you cannot leave this household.');
+                       return;
+                       }
+                        if (!window.confirm('Are you sure you want to leave this household?')) return;
+                         try {
+                          await DoneeAPI.leaveHousehold();
+                          alert('Left household successfully');
+                            setHousehold(null);
+                         } catch (err) {
+                           const msg = err?.response?.data?.message || err?.message || 'Failed to leave household.';
+                           alert(msg); // shows backend message like: "You cannot leave... because you have created bookings."
+                         }
+                    }}
+                  >
+                    Leave Household
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="d-flex gap-2">
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={() => {
+                    setShowCreate(true);
+                    setShowJoin(false);
+                  }}
+                >
+                  Create Household
+                </button>
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => {
+                    setShowJoin(true);
+                    setShowCreate(false);
+                  }}
+                >
+                  Join Household
+                </button>
+              </div>
+            )}
 
-  {/* Create Household Form */}
-  {showCreate && (
-    <form
-      className="mt-3 border rounded p-3"
-      onSubmit={handleCreateHousehold}
-    >
-      <div className="mb-2">
-        <label className="form-label">Household Name</label>
-        <input
-          type="text"
-          className="form-control"
-          value={householdName}
-          onChange={(e) => setHouseholdName(e.target.value)}
-          required
-        />
-      </div>
-      <div className="d-flex justify-content-between">
-        <button className="btn btn-primary" type="submit">
-          Create
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline-danger"
-          onClick={() => setShowCreate(false)}
-        >
-          Close
-        </button>
-      </div>
-    </form>
-  )}
+            {/* Create Household Form */}
+            {showCreate && (
+              <form className="mt-3 border rounded p-3" onSubmit={handleCreateHousehold}>
+                <div className="mb-2">
+                  <label className="form-label">Household Name</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={householdName}
+                    onChange={(e) => setHouseholdName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="d-flex justify-content-between">
+                  <button className="btn btn-primary" type="submit">
+                    Create
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger"
+                    onClick={() => setShowCreate(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </form>
+            )}
 
-  {/* Join Household Form */}
-  {showJoin && (
-    <form
-      className="mt-3 border rounded p-3"
-      onSubmit={handleJoinHousehold}
-    >
-      <div className="mb-2">
-        <label className="form-label">Household Code</label>
-        <input
-          type="text"
-          className="form-control"
-          value={joinCode}
-          onChange={(e) => setJoinCode(e.target.value)}
-          required
-        />
-      </div>
-      <div className="d-flex justify-content-between">
-        <button className="btn btn-secondary" type="submit">
-          Join
-        </button>
-        <button
-          type="button"
-          className="btn btn-outline-danger"
-          onClick={() => setShowJoin(false)}
-        >
-          Close
-        </button>
-      </div>
-    </form>
-  )}
-</div>
+            {/* Join Household Form */}
+            {showJoin && (
+              <form className="mt-3 border rounded p-3" onSubmit={handleJoinHousehold}>
+                <div className="mb-2">
+                  <label className="form-label">Household Code</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="d-flex justify-content-between">
+                  <button className="btn btn-secondary" type="submit">
+                    Join
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger"
+                    onClick={() => setShowJoin(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
 
           {/* Request List */}
           <h5 className="fw-bold mb-3">Recent Requests</h5>
@@ -232,9 +302,8 @@ export default function Profile() {
                 <li key={i} className="list-group-item d-flex justify-content-between">
                   <span>{r.item}</span>
                   <span
-                    className={`badge ${
-                      r.status === 'Approved' ? 'bg-success' : 'bg-secondary'
-                    }`}
+                    className={`badge ${r.status === 'Approved' ? 'bg-success' : 'bg-secondary'
+                      }`}
                   >
                     {r.status}
                   </span>

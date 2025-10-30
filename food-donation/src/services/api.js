@@ -1,11 +1,18 @@
 import axios from 'axios';
-import DonationHistory from '../pages/DonationHistory';
 
 const api = axios.create({
   baseURL: 'http://localhost:8000',
   timeout: 15000,
 });
-
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1];
+    const json = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
 // simple UUID for headers
 function uuid() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -20,6 +27,15 @@ api.interceptors.request.use((config) => {
   const raw = localStorage.getItem('auth:user');
   const auth = raw ? JSON.parse(raw) : null;
   if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`;
+
+  let uid = Number(auth?.user_id ?? auth?.id);
+  if (!Number.isFinite(uid) && auth?.token) {
+    const payload = decodeJwtPayload(auth.token);
+    uid = Number(payload?.user_id ?? payload?.id ?? payload?.sub);
+  }
+  if (Number.isFinite(uid)) {
+    config.headers['x-user-id'] = uid;
+  }
 
   const method = (config.method || 'get').toLowerCase();
   if (['post', 'put', 'patch', 'delete'].includes(method)) {
@@ -41,6 +57,7 @@ export const DonationAPI = {
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
   list:() => api.get('/donation/list'),
   approve: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
+  cancel: (donationId) => api.post(`/donation/cancel/${donationId}`),
 };
 
 
@@ -60,8 +77,9 @@ export const AdminAPI = {
 }
 
 export const BookingAPI = {
+  create: (payload) => api.post('/bookings', payload).then(r => r.data),
+  historyMine: () => api.get('/bookings/history'),
   list: () => api.get("/admin/bookings"),
-  create: (payload) => api.post('/bookings', payload),
   myBookings: () => api.get('/bookings/me'),
   availability: (locationId) => api.get('/bookings/availability', { params: { locationId } }),
   adminList: (params) => api.get('/bookings/admin', { params }),

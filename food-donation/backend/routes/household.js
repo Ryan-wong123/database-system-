@@ -5,10 +5,12 @@ const { createAndJoinHousehold, joinByPin, leaveMyHousehold, getMyHousehold } = 
 
 // very simple auth middleware: expects req.user.id, adapt to your JWT auth if needed
 function requireAuth(req, res, next) {
-  // If you already decode JWT elsewhere, reuse it.
-  // Here, read from Authorization: Bearer <token> if you have a decoder.
-  // For brevity, assume req.user is already set by a global middleware.
-  if (!req.user?.id) return res.status(401).json({ error: "Unauthorized" });
+  const uid = req.user?.id ?? req.user?.user_id;
+  if (!Number.isInteger(Number(uid))) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  // normalize for downstream:
+  req.user = { id: Number(uid), user_id: Number(uid) };
   next();
 }
 
@@ -26,7 +28,9 @@ router.get("/me", requireAuth, async (req, res) => {
 // POST /households      -> create new household and join
 router.post("/", requireAuth, async (req, res) => {
   try {
-    const data = await createAndJoinHousehold(req.user.id);
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ error: "Household name required" });
+    const data = await createAndJoinHousehold(req.user.id, name);
     res.status(201).json({ data });
   } catch (e) {
     console.error(e);
@@ -37,15 +41,22 @@ router.post("/", requireAuth, async (req, res) => {
 // POST /households/join -> join existing household by PIN
 router.post("/join", requireAuth, async (req, res) => {
   try {
-    const { pin } = req.body || {};
-    if (!pin) return res.status(400).json({ error: "PIN required" });
-    const data = await joinByPin(req.user.id, pin.toUpperCase());
-    res.status(200).json({ data });
-  } catch (e) {
-    console.error(e);
-    res.status(400).json({ error: e.message || "Failed to join household" });
+    const { pin } = req.body;
+    if (!pin) return res.status(400).json({ error: "Household PIN required" });
+
+    const data = await joinByPin(req.user.user_id, pin);
+
+    if (data === "Successfully joined household") {
+      res.json({ success: true, message: data });
+    } else {
+      res.status(400).json({ error: data });
+    }
+  } catch (err) {
+    console.error("Join household error:", err);
+    res.status(400).json({ error: "Failed to join household" });
   }
 });
+
 
 // DELETE /households/me -> leave current household
 router.delete("/me", requireAuth, async (req, res) => {
