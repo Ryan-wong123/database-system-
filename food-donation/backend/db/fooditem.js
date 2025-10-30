@@ -1,28 +1,5 @@
 const pgPool = require("./index");
 
-// async function getFoodItems(){
-//     const sql = `SELECT to_jsonb(t) AS fooditem FROM (SELECT * FROM v_food_items) AS t`;
-//     try{
-//         const { rows } = await pgPool.query(sql);
-//         return rows;
-//     }
-//     catch(err){
-//         throw err
-//     }
-// }
-
-// async function getFoodItem(id){
-//     const sql = `SELECT to_jsonb(t) AS fooditem FROM (SELECT * FROM v_food_items where food_item_id = $1 ) AS t`;
-//     const values = [id];
-//     try{
-//         const { rows } = await pgPool.query(sql, values);
-//         return rows[0]?.fooditem;
-//     }
-//     catch(err){
-//         throw err
-//     }
-// }
-
 async function getFoodItems(){
     const sql = `
         SELECT to_jsonb(t) AS fooditem 
