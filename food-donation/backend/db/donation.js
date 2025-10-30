@@ -178,7 +178,6 @@ async function cancelDonation(donation_id) {
 async function getDonationHistory(donor_id) {
     const sql = `
     SELECT 
-    d.donation_id,
     fi.name              AS food_name,
     fc.name              AS category,
     di.quantity          AS qty,

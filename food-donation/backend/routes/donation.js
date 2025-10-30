@@ -151,7 +151,7 @@ router.get("/list", async (req, res) => {
   }
 });
 
-// Donation Approval Status Update
+
 router.post("/approve/:id", async (req, res) => {
   try {
     const { approve_status } = req.body;
@@ -195,34 +195,6 @@ router.post("/approve/:id", async (req, res) => {
   }
 });
 
-// Cancel donation
-router.post("/cancel/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({ ok: false, error: `Invalid id: ${id}` });
-    }
-
-    const sql = `
-      UPDATE donations
-      SET approve_status = 'cancelled'
-      WHERE donation_id = $1 AND approve_status = 'pending'
-      RETURNING donation_id, approve_status;
-    `;
-    const { rows, rowCount } = await pgPool.query(sql, [id]);
-
-    if (rowCount === 0) {
-      return res.status(409).json({ ok: false, error: "Only pending donations can be cancelled or donation not found." });
-    }
-
-    return res.json({ ok: true, donation: rows[0], message: "Donation cancelled successfully." });
-  } catch (err) {
-    console.error("POST /donation/cancel error:", err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// List donations by account ID
 router.get("/list/:id", async (req, res) => {
   try {
     //need to add auth logic here later
@@ -250,7 +222,6 @@ router.get("/list/:id", async (req, res) => {
   }
 })
 
-// History of donations by donor_id
 router.get("/history/:donor_id", async (req, res) => {
   try {
     const donor_id = Number(req.params.donor_id);
