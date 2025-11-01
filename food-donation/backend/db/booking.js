@@ -22,7 +22,8 @@ async function updateBookingStatus(booking_id, status) {
 
 async function getBookingHistoryByUser(user_id) {
   const { rows } = await db.query(
-    `SELECT booking_id, location_id, location_name, slot_start, slot_end, status, created_at, items_count
+    `SELECT booking_id, location_id, location_name, slot_start, slot_end,
+            status, created_at, items_count, items   -- <<< include items
      FROM sp_booking_history_by_user($1)
      ORDER BY slot_start DESC;`,
     [user_id]

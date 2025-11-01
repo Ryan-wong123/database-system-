@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// Booking.js (drop-in replacement)
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UseFetchData from '../hooks/useFetchData';
 import { BookingAPI, InventoryAPI, LocationsAPI, HouseholdAPI } from '../services/api';
@@ -10,6 +11,7 @@ export default function Booking() {
   const [message, setMessage] = useState('');
   const nav = useNavigate();
 
+  // Require household membership (redirect to profile if missing)
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -19,7 +21,7 @@ export default function Booking() {
         if (!mounted) return;
         if (!household) nav('/profile?reason=no-household', { replace: true });
       } catch {
-        nav('/profile?reason=no-household', { replace: true });
+        if (mounted) nav('/profile?reason=no-household', { replace: true });
       }
     })();
     return () => { mounted = false; };
@@ -27,21 +29,68 @@ export default function Booking() {
 
   const setField = (key, val) => setForm((f) => ({ ...f, [key]: val }));
 
+  // Data sources
   const locations = UseFetchData(() => LocationsAPI.list(), []);
-  const inventory  = UseFetchData(() => InventoryAPI.list(), []);
 
+  // Refetch inventory when a location is chosen
+  const inventory = UseFetchData(
+  () => {
+    if (!form.location_id) return Promise.resolve({ data: [] });
+    const locId = Number(form.location_id);
+    return InventoryAPI.list({ location_id: locId }); // server accepts this param
+  },
+  [form.location_id] // <— refetch when location changes
+);
+
+  // Row helpers for requested items
   const updateRequested = (idx, key, value) =>
     setRequested((rows) => {
       const next = [...rows];
       next[idx] = { ...next[idx], [key]: value };
       return next;
     });
-
   const addRequested = () => setRequested((rows) => [...rows, { item_id: '', qty: 1 }]);
   const removeRequested = (idx) => setRequested((rows) => rows.filter((_, i) => i !== idx));
 
+  // Options
+  const locationOptions = Array.isArray(locations.data) ? locations.data : [];
+const invRows = useMemo(() => {
+  const d = inventory.data;
+  if (Array.isArray(d)) return d;                 // plain array (db/queries.js -> rows)
+  if (d && Array.isArray(d.items)) return d.items; // wrapped { items: [...] } (Inventory page style)
+  return [];
+}, [inventory.data]);
+  // Build item options from inventory (aggregate lots by food_item_id at the selected location)
+ const itemOptions = useMemo(() => {
+  const today = new Date().toISOString().slice(0,10);
+  const map = new Map(); // id -> { name, total }
+
+  for (const row of invRows) {
+    const fid = Number(row.food_item_id ?? row.item_id ?? row.id);
+    const qty = Number(row.qty ?? row.quantity ?? 0);
+    const exp = String(row.expiry_date ?? row.expiry ?? '') || null;
+    if (!Number.isInteger(fid) || qty <= 0) continue;
+    if (exp && exp < today) continue;
+
+    const name = String(row.name ?? row.label ?? `Item #${fid}`);
+    map.set(fid, { name, total: (map.get(fid)?.total ?? 0) + qty });
+  }
+
+  return Array.from(map.entries())
+    .sort((a, b) => a[1].name.localeCompare(b[1].name, undefined, { sensitivity: 'base' }))
+    .map(([id, v]) => ({ id, label: `${v.name} (${v.total} available)`, total: v.total, disabled: v.total <= 0 }));
+}, [invRows]);
+  // If location changes, clear selections not valid for this location
+  useEffect(() => {
+    const validIds = new Set(itemOptions.filter(o => !o.disabled).map(o => o.id));
+    setRequested(rows =>
+      rows.map(r => (r.item_id && !validIds.has(Number(r.item_id)) ? { item_id: '', qty: r.qty } : r))
+    );
+  }, [form.location_id, itemOptions]);
+
+  // Validate form + requested items
   const validate = () => {
-    if (!form.location_id.trim()) {
+    if (!String(form.location_id).trim()) {
       setMessage('Location is required.');
       return false;
     }
@@ -59,14 +108,20 @@ export default function Booking() {
       setMessage('End time must be after start time.');
       return false;
     }
-    if (requested.length === 0) {
+    if (!Array.isArray(requested) || requested.length === 0) {
       setMessage('Please add at least one requested item.');
       return false;
     }
     for (let i = 0; i < requested.length; i++) {
       const row = requested[i];
-      if (!String(row.item_id || '').trim()) {
-        setMessage(`Row ${i + 1}: Please select an item.`);
+      const idNum = Number(row.item_id);
+      if (!Number.isInteger(idNum) || idNum <= 0) {
+        setMessage(`Row ${i + 1}: Please select a valid item.`);
+        return false;
+      }
+      const opt = itemOptions.find(o => o.id === idNum);
+      if (!opt) {
+        setMessage(`Row ${i + 1}: Selected item is not in inventory for this location.`);
         return false;
       }
       const q = Number(row.qty);
@@ -74,29 +129,31 @@ export default function Booking() {
         setMessage(`Row ${i + 1}: Quantity must be at least 1.`);
         return false;
       }
+      // Optional: prevent exceeding available quantity at this location
+      if (q > opt.total) {
+        setMessage(`Row ${i + 1}: Only ${opt.total} available for this item at this location.`);
+        return false;
+      }
     }
     return true;
   };
 
+  // Submit
   const submit = async (e) => {
     e.preventDefault();
     setMessage('');
     if (!validate()) return;
 
     const payload = {
-      location_id: form.location_id.trim(),
-      slot_start: new Date(form.slot_start).toISOString(),
-      slot_end: new Date(form.slot_end).toISOString(),
-      // ✅ change: send `items` with `food_item_id`
-      items: requested.map((r) => ({
-        food_item_id: Number(r.item_id),
-        qty: Number(r.qty),
-      })),
+      location_id: Number(form.location_id),
+  slot_start: new Date(form.slot_start).toISOString(),
+  slot_end:   new Date(form.slot_end).toISOString(),
+  items: requested.map(r => ({ food_item_id: Number(r.item_id), qty: Number(r.qty) })),
     };
 
     setBusy(true);
     try {
-      await BookingAPI.create(payload);
+      await BookingAPI.create(payload); // backend validates again
       setMessage('Booking created!');
       setForm({ location_id: '', slot_start: '', slot_end: '' });
       setRequested([{ item_id: '', qty: 1 }]);
@@ -107,11 +164,6 @@ export default function Booking() {
     }
   };
 
-  const locationOptions = Array.isArray(locations.data) ? locations.data : [];
-  const itemOptions =
-    Array.isArray(inventory.data?.items) ? inventory.data.items :
-    (Array.isArray(inventory.data) ? inventory.data : []);
-
   return (
     <div className="d-grid gap-3">
       <h1 className="h4">Book a Collection Slot</h1>
@@ -120,6 +172,7 @@ export default function Booking() {
         <div className="card-body d-grid gap-3">
           <h2 className="h5 mb-0">New Booking</h2>
 
+          {/* Location */}
           <div>
             <label className="form-label">Location</label>
             <select
@@ -133,12 +186,17 @@ export default function Booking() {
                 {locations.loading ? 'Loading locations…' : 'Select a location'}
               </option>
               {locationOptions.map((loc) => (
-                <option key={loc.id} value={loc.id}>{loc.name}</option>
+                <option key={loc.location_id ?? loc.id} value={loc.location_id ?? loc.id}>
+                  {loc.name}
+                </option>
               ))}
             </select>
-            {locations.error && <div className="text-danger small mt-1">Failed to load locations.</div>}
+            {locations.error && (
+              <div className="text-danger small mt-1">Failed to load locations.</div>
+            )}
           </div>
 
+          {/* Times */}
           <div className="row g-3">
             <div className="col-md-6">
               <label className="form-label">Pickup Start</label>
@@ -165,13 +223,14 @@ export default function Booking() {
             </div>
           </div>
 
+          {/* Items */}
           <div>
             <h3 className="h6 mb-2">Requested Items</h3>
             <div className="table-responsive">
               <table className="table align-middle">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 240 }}>Item</th>
+                    <th style={{ minWidth: 280 }}>Item (from inventory)</th>
                     <th style={{ width: 140 }}>Quantity</th>
                     <th style={{ width: 120 }}></th>
                   </tr>
@@ -181,22 +240,23 @@ export default function Booking() {
                     <tr key={idx}>
                       <td>
                         <select
-                          className="form-select"
-                          value={row.item_id}
-                          onChange={(e) => updateRequested(idx, 'item_id', e.target.value)}
-                          required
-                          disabled={inventory.loading}
-                        >
-                          <option value="" disabled>
-                            {inventory.loading ? 'Loading items…' : 'Select an item'}
-                          </option>
-                          {itemOptions.map((it) => (
-                            <option key={it.item_id} value={it.item_id}>
-                              {it.name} {it.category ? `— ${it.category}` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        {inventory.error && <div className="text-danger small mt-1">Failed to load items.</div>}
+  className="form-select"
+  value={row.item_id}
+  onChange={(e) => updateRequested(idx, 'item_id', e.target.value)}
+  required
+  disabled={inventory.loading || !form.location_id}
+>
+  <option value="" disabled>
+    {!form.location_id ? 'Select a location first' : (inventory.loading ? 'Loading inventory…' : 'Select an item')}
+  </option>
+  {itemOptions.map(it => (
+    <option key={it.id} value={it.id} disabled={it.disabled}>{it.label}</option>
+  ))}
+</select>
+
+                        {inventory.error && (
+                          <div className="text-danger small mt-1">Failed to load items.</div>
+                        )}
                       </td>
                       <td>
                         <input
@@ -204,7 +264,9 @@ export default function Booking() {
                           className="form-control"
                           min="1"
                           value={row.qty}
-                          onChange={(e) => updateRequested(idx, 'qty', Math.max(1, Number(e.target.value)))}
+                          onChange={(e) =>
+                            updateRequested(idx, 'qty', Math.max(1, Number(e.target.value)))
+                          }
                           required
                         />
                       </td>
@@ -229,6 +291,7 @@ export default function Booking() {
             </button>
           </div>
 
+          {/* Submit */}
           <div className="d-flex gap-2">
             <button type="submit" className="btn btn-success" disabled={busy}>
               {busy ? 'Saving…' : 'Confirm Booking'}
