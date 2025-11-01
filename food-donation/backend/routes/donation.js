@@ -75,28 +75,19 @@ router.post("/create", async (req, res) => {
         if (!isFutureOrTodayISO(iso)) throw new Error(`items[${i}].expiry_date must be today or later`);
         if (!isInt(it.qty) || Number(it.qty) < 1) throw new Error(`items[${i}].qty must be >= 1`);
 
-        // Check if existing food_item_id OR new item details
-        const hasExisting = isInt(it.food_item_id);
-        const hasNew = it.name && isInt(it.category_id) && isInt(it.unit_id) && it.ingredients;
-        
-        if (!hasExisting && !hasNew) {
+        const hasDetails = it.name && isInt(it.category_id) && isInt(it.unit_id) && it.ingredients;
+        if (!hasDetails) {
           throw new Error(
-            `items[${i}] must have either food_item_id OR (name, category_id, unit_id, ingredients)`
+            `items[${i}] must have name, category_id, unit_id, and ingredients`
           );
         }
-        
-        return { 
-          ...it, 
-          qty: Number(it.qty), 
-          expiry_date: iso,
-          food_item_id: hasExisting ? Number(it.food_item_id) : undefined
-        };
+        return { ...it, qty: Number(it.qty), expiry_date: iso };
       });
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });
     }
 
-    // ---- 3) Call addDonation ----
+    // ---- 3) Call addDonation from db/donation.js (like foodcategory does) ----
     const payload = {
       donor_id: Number(donorId),
       location_id: Number(location_id),
@@ -117,26 +108,20 @@ router.post("/create", async (req, res) => {
     return res.status(500).json({ ok: false, error: "Insert failed" });
 
   } catch (err) {
-    // Map common Postgres error codes
+    // Map common Postgres error codes (same as foodcategory)
     if (err.code === "23503") {
       return res.status(400).json({ ok: false, error: "Invalid reference: " + err.detail });
     }
-
-    console.error("POST /donation/create error:", err);
-    
-    // Handle our custom duplicate error (with detailed message)
-    if (err.message && err.message.includes('already exists')) {
-      return res.status(409).json({ ok: false, error: err.message });
-    }
-
-    // Generic database constraint violations (fallback)
     if (err.code === "23505") {
-      return res.status(409).json({ ok: false, error: "Duplicate record detected." });
+      return res.status(409).json({ ok: false, error: "Duplicate record." });
     }
-    
+
+    // Generic error
+    console.error("POST /donation/create error:", err);
     return res.status(500).json({ ok: false, error: err.message });
-}
+  }
 });
+
 // ====================
 // GET /donation/list
 // ====================

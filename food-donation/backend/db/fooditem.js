@@ -1,27 +1,7 @@
 const pgPool = require("./index");
 
 async function getFoodItems(){
-    const sql = `
-        SELECT to_jsonb(t) AS fooditem 
-        FROM (
-            SELECT 
-                fi.food_item_id,
-                fi.name,
-                fi.category_id,
-                fc.name AS category_name,
-                fi.unit_id,
-                fu.unit AS unit_name,
-                fi.ingredients,
-                ARRAY_AGG(d.diet_id) FILTER (WHERE d.diet_id IS NOT NULL) AS diet_ids,
-                ARRAY_AGG(d.diet_flags) FILTER (WHERE d.diet_flags IS NOT NULL) AS diet_flags
-            FROM fooditems fi
-            JOIN foodcategory fc ON fi.category_id = fc.category_id
-            JOIN foodunit fu ON fi.unit_id = fu.unit_id
-            LEFT JOIN fooditemdiet fid ON fi.food_item_id = fid.food_item_id
-            LEFT JOIN diet d ON fid.diet_id = d.diet_id
-            GROUP BY fi.food_item_id, fi.name, fi.category_id, fc.name, fi.unit_id, fu.unit, fi.ingredients
-        ) AS t
-    `;
+    const sql = `SELECT to_jsonb(t) AS fooditem FROM (SELECT * FROM v_food_items) AS t`;
     try{
         const { rows } = await pgPool.query(sql);
         return rows;
@@ -32,28 +12,7 @@ async function getFoodItems(){
 }
 
 async function getFoodItem(id){
-    const sql = `
-        SELECT to_jsonb(t) AS fooditem 
-        FROM (
-            SELECT 
-                fi.food_item_id,
-                fi.name,
-                fi.category_id,
-                fc.name AS category_name,
-                fi.unit_id,
-                fu.unit AS unit_name,
-                fi.ingredients,
-                ARRAY_AGG(d.diet_id) FILTER (WHERE d.diet_id IS NOT NULL) AS diet_ids,
-                ARRAY_AGG(d.diet_flags) FILTER (WHERE d.diet_flags IS NOT NULL) AS diet_flags
-            FROM fooditems fi
-            JOIN foodcategory fc ON fi.category_id = fc.category_id
-            JOIN foodunit fu ON fi.unit_id = fu.unit_id
-            LEFT JOIN fooditemdiet fid ON fi.food_item_id = fid.food_item_id
-            LEFT JOIN diet d ON fid.diet_id = d.diet_id
-            WHERE fi.food_item_id = $1
-            GROUP BY fi.food_item_id, fi.name, fi.category_id, fc.name, fi.unit_id, fu.unit, fi.ingredients
-        ) AS t
-    `;
+    const sql = `SELECT to_jsonb(t) AS fooditem FROM (SELECT * FROM v_food_items where food_item_id = $1 ) AS t`;
     const values = [id];
     try{
         const { rows } = await pgPool.query(sql, values);
