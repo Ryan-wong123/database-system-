@@ -56,7 +56,6 @@ export const DonationAPI = {
   listRecent: ({ limit = 10 } = {}) => api.get('/donation', { params: { limit } }),
   DonationHistory: (userId) => api.get(`/donation/history/${userId}`),
   list:() => api.get('/donation/list'),
-  approve: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
   cancel: (donationId) => api.post(`/donation/cancel/${donationId}`),
 };
 
@@ -72,7 +71,7 @@ export const AdminAPI = {
   categorieslist: () => api.get('/admin/categories'),
   adminList: (params) => api.get('/bookings/admin', { params }), 
   updateStatus: (bookingId, { status }) => api.patch(`/admin/bookings/${bookingId}/status`, { status }),
-  approveDonation: (payload) => api.post('/donation/approve', payload), 
+  approveDonation: (donationId, approve_status) => api.post(`/donation/approve/${donationId}`, { approve_status }),
 
 }
 
