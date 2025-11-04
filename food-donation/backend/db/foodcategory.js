@@ -1,4 +1,4 @@
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 
 async function getFoodCategories(){
     const sql = `SELECT to_jsonb(t) AS category FROM (SELECT * FROM v_food_category) as t`;

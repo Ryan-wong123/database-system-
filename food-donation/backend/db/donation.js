@@ -1,4 +1,4 @@
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 const ALLOWED_DONATION_STATUSES = new Set(['pending', 'confirmed', 'cancelled', 'completed']);
 
 async function getDonations() {

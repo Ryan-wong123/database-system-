@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const pgPool = require("../db/index");
+const { pgPool } = require("../db/index");
 const jwt = require("jsonwebtoken");
 const { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationHistory } = require("../db/donation");
 const ALLOWED_DONATION_STATUSES = new Set(['pending', 'confirmed', 'cancelled', 'completed']);

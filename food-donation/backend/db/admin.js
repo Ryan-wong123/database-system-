@@ -1,5 +1,5 @@
 // db/booking.js
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 
 // Allowed statuses – ensure these match your DB enum/check
 const ALLOWED_BOOKING_STATUSES = new Set(['pending','confirmed','cancelled','completed']);

@@ -1,5 +1,5 @@
 // db/household.js
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 
 // db/household.js
 async function createAndJoinHousehold(userId, name) {

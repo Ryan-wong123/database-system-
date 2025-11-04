@@ -1,5 +1,5 @@
 // db/queries.js
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 
 /** Inventory (front & admin) **/
 async function listInventory({ inStockOnly, q, location_id }) {

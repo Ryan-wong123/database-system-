@@ -1,7 +1,7 @@
 // db/user.js
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
