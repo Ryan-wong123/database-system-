@@ -1,32 +1,28 @@
-// backend/scripts/seed_food_embeddings.js
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+
 const { pgPool, connectMongoose } = require("../db/index");
 const OpenAI = require("openai");
 const Rec = require("../db/mongo_schema/recommended_fooditem_semantics");
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+if (!process.env.OPENAI_API_KEY) { console.error("❌ OPENAI_API_KEY missing"); process.exit(1); }
+if (!process.env.MONGO_URI) { console.error("❌ MONGO_URI missing"); process.exit(1); }
 
-/**
- * Pick ONE model and keep it consistent with your Atlas index dimensions:
- *  - text-embedding-3-small (1536 dims)  [cheaper]
- *  - text-embedding-3-large (3072 dims)  [higher quality]
- */
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "text-embedding-3-small";
 
+/** Text we embed */
 function buildDocText({ name, ingredients, category, unit }) {
-  // This is the semantic string we embed.
-  // Feel free to enrich with synonyms or allergen flags if you have them.
   return [
     `Name: ${name}`,
     category ? `Category: ${category}` : "",
     unit ? `Unit: ${unit}` : "",
-    ingredients ? `Ingredients: ${ingredients}` : ""
+    ingredients ? `Ingredients: ${ingredients}` : "",
   ].filter(Boolean).join("\n");
 }
 
-async function fetchFoodRows() {
-  // You already query via view v_food_items in db/fooditem.js; we’ll reproduce that here
-  // with category/unit names resolved. Use your existing view if available.
+/** Pull base item rows (with category/unit) */
+async function fetchFoodBase() {
   const sql = `
     SELECT fi.food_item_id AS item_id,
            fi.name,
@@ -35,62 +31,81 @@ async function fetchFoodRows() {
            fu.unit AS unit
     FROM FoodItems fi
     JOIN FoodCategory fc ON fc.category_id = fi.category_id
-    JOIN FoodUnit fu ON fu.unit_id = fi.unit_id
+    JOIN FoodUnit fu     ON fu.unit_id     = fi.unit_id
     ORDER BY fi.food_item_id
   `;
   const { rows } = await pgPool.query(sql);
-  return rows;
+  return rows; // [{item_id, name, ingredients, category, unit}, ...]
+}
+
+/** Pull availability snapshot: SUM(qty), MIN(expiry) per item_id */
+async function fetchAvailability(itemIds) {
+  if (!itemIds.length) return new Map();
+  const sql = `
+    SELECT inv.food_item_id AS item_id,
+           COALESCE(SUM(inv.qty), 0) AS qty_total,
+           MIN(inv.expiry_date)      AS min_expiry
+    FROM Inventory inv
+    WHERE inv.food_item_id = ANY($1::int[])
+    GROUP BY inv.food_item_id
+  `;
+  const { rows } = await pgPool.query(sql, [itemIds]);
+  return new Map(rows.map(r => [r.item_id, {
+    qty_total: Number(r.qty_total || 0),
+    min_expiry: r.min_expiry || null,
+  }]));
 }
 
 async function embedBatch(texts) {
-  // OpenAI official embeddings usage (Node.js)
-  // Docs: https://platform.openai.com/docs/guides/embeddings
-  const resp = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: texts
-  });
+  const resp = await openai.embeddings.create({ model: EMBEDDING_MODEL, input: texts });
   return resp.data.map(d => d.embedding);
 }
 
 async function main() {
   await connectMongoose();
-  const rows = await fetchFoodRows();
+  console.log("✅ Connected to MongoDB");
 
+  // 1) base rows
+  const baseRows = await fetchFoodBase();
+
+  // 2) availability snapshot (sum qty, earliest expiry)
+  const ids = baseRows.map(r => r.item_id);
+  const avail = await fetchAvailability(ids);
+
+  // 3) embed in batches and upsert with denormalized fields
   const BATCH = 100;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const slice = rows.slice(i, i + BATCH);
-
-    const texts = slice.map(r => buildDocText(r));
+  for (let i = 0; i < baseRows.length; i += BATCH) {
+    const chunk = baseRows.slice(i, i + BATCH);
+    const texts = chunk.map(r => buildDocText(r));
     const vectors = await embedBatch(texts);
 
-    const ops = slice.map((r, idx) => ({
-      updateOne: {
-        filter: { item_id: r.item_id },
-        update: {
-          $set: {
-            item_id: r.item_id,
-            name: r.name,
-            embedding: vectors[idx],
-            updated_at: new Date(),
-            // optional enrichments:
-            // tags: r.tags || [],
-            // synonyms: r.synonyms || [],
-            // allergen_flags: r.allergen_flags || []
-          }
-        },
-        upsert: true
-      }
-    }));
+    const ops = chunk.map((r, idx) => {
+      const av = avail.get(r.item_id) || { qty_total: 0, min_expiry: null };
+      return {
+        updateOne: {
+          filter: { item_id: r.item_id },
+          update: {
+            $set: {
+              item_id: r.item_id,
+              name: r.name,
+              category: r.category || "",
+              qty_total: Number(av.qty_total || 0),
+              min_expiry: av.min_expiry ? new Date(av.min_expiry) : null,
+              embedding: vectors[idx],
+              updated_at: new Date(),
+            },
+          },
+          upsert: true,
+        }
+      };
+    });
 
     await Rec.bulkWrite(ops, { ordered: false });
-    console.log(`Upserted ${ops.length} embeddings...`);
+    console.log(`⬆️ Upserted ${ops.length} embeddings…`);
   }
 
-  console.log("✅ Finished seeding embeddings");
+  console.log("✅ Finished seeding embeddings with category/qty/expiry snapshots");
   process.exit(0);
 }
 
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+main().catch((e) => { console.error(e); process.exit(1); });

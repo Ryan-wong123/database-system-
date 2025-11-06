@@ -39,32 +39,37 @@ export default function Inventory() {
     }
   }
 
-  const itemsToShow = useMemo(() => {
-  const semResults = toArray(semantic?.data);
+    const itemsToShow = useMemo(() => {
+    const sem = toArray(semantic?.data);
 
-  console.log("🔵 [FRONTEND] semantic results normalized:", semResults);
+    console.log("🔵 [FRONTEND] semantic results normalized:", sem);
 
-  if (semantic?.data?.ok && semResults.length) {
-    const arr = semResults.map((r) => ({
-      id: r.item_id ?? r.id,
-      name: r.name,
-      qty: r.qty,
-      score: r.score,
+    // ✅ Replace your existing `if (semantic?.data?.ok && semResults.length) { ... }`
+    //    with this block so we also forward category/expiry coming from Mongo.
+    if (semantic?.data?.ok && sem.length) {
+      const arr = sem.map(r => ({
+        id: r.item_id ?? r.id,
+        name: r.name,
+        category: r.category,      // now read from Mongo
+        qty: r.qty,                // qty_total snapshot
+        expiry: r.expiry,          // min_expiry snapshot (YYYY-MM-DD)
+        score: r.score
+      }));
+
+      console.log("🟢 [FRONTEND] itemsToShow (semantic):", arr);
+      return arr;
+    }
+
+    console.log("🟡 [FRONTEND] itemsToShow (stock):", stockArray);
+
+    return stockArray.map(row => ({
+      id: row.item_id ?? row.food_item_id,
+      name: row.name ?? row.item_name,
+      category: row.category ?? row.category_name ?? "",
+      qty: row.qty_total ?? row.qty_on_hand ?? row.qty ?? 0,
+      expiry: row.expiry ?? row.min_expiry ?? null
     }));
-
-    console.log("🟢 [FRONTEND] itemsToShow (semantic):", arr);
-
-    return arr;
-  }
-
-  console.log("🟡 [FRONTEND] itemsToShow (stock):", stockArray);
-
-  return stockArray.map((row) => ({
-    id: row.item_id ?? row.food_item_id,
-    name: row.name ?? row.item_name,
-    qty: row.qty_total ?? row.qty_on_hand,
-  }));
-}, [semantic, stockArray]);
+  }, [semantic, stockArray]);
 
 
   return (

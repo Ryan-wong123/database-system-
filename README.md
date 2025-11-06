@@ -59,6 +59,45 @@ check for blocking ports on 8000
 netstat -ano | findstr :8000
 ```
 
+## generate embeddings for food search
+```
+$env:PG_HOST = "localhost"
+```
+```
+$env:PG_USER = "postgres"
+```
+
+```
+$env:PG_PASSWORD = "ran1doms2tring3@lol"
+```
+
+```
+$env:PG_DATABASE = "inf2003db"
+```
+```
+$env:PG_PORT = "5432"
+```
+
+```
+$env:OPENAI_API_KEY = "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"
+```
+
+```
+$env:MONGO_URI = "mongodb+srv://fooddonor:root@cluster0.tx37mvn.mongodb.net/foodDonationDB"
+```
+
+```
+$env:MONGO_DBNAME = "foodDonationDB"
+```
+
+```
+$env:EMBEDDING_MODEL = "text-embedding-3-small"
+```
+
+```
+node backend/scripts/seed_food_embeddings.js
+```
+
 # Code Structure breakdown
 
 ## Components
