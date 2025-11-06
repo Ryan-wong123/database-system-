@@ -1,4 +1,13 @@
 export default function ItemCard({ name, category, qty, expiry }) {
+
+  // ✅ Add console log here
+  console.log("🟣 [ItemCard] props received:", {
+    name,
+    category,
+    qty,
+    expiry
+  });
+
   return (
     <div className="card h-100 shadow-sm">
       <div className="card-body d-flex justify-content-between align-items-start">

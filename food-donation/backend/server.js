@@ -18,6 +18,9 @@ const dietRoute = require("./routes/diet");
 
 const bookings = require('./routes/bookings');
 const bookinghistory = require('./routes/bookinghistory');
+const recommendationRoutes = require("./routes/recommendations");
+
+
 // app setup
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -49,7 +52,7 @@ app.use("/donation", donationRoutes);
 app.use("/admin", adminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
-
+app.use("/recommendations", recommendationRoutes);
 // ----- MongoDB -----
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)
