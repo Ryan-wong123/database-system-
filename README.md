@@ -75,7 +75,7 @@ $env:PG_PASSWORD = "ran1doms2tring3@lol"
 $env:PG_DATABASE = "inf2003db"
 ```
 ```
-$env:PG_PORT = "5432"
+$env:PG_PORT = "5433"
 ```
 
 ```
