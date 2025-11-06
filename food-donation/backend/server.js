@@ -18,6 +18,8 @@ const dietRoute = require("./routes/diet");
 
 const bookings = require('./routes/bookings');
 const bookinghistory = require('./routes/bookinghistory');
+
+const householdProfileRoutes = require("./routes/householdProfile");
 // app setup
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -50,6 +52,7 @@ app.use("/admin", adminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
 
+app.use("/profile", householdProfileRoutes);
 // ----- MongoDB -----
 if (process.env.MONGO_URI) {
   mongoose.connect(process.env.MONGO_URI)

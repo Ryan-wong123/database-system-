@@ -4,6 +4,7 @@ const { pgPool } = require("../db/index");
 const jwt = require("jsonwebtoken");
 const { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationHistory } = require("../db/donation");
 const ALLOWED_DONATION_STATUSES = new Set(['pending', 'confirmed', 'cancelled', 'completed']);
+const { upsertDonationHistory, listDonationHistoryFromMongo } = require("../db/donation_history_upsert");
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
@@ -244,18 +245,42 @@ router.get("/history/:donor_id", async (req, res) => {
       e.status = 400;
       throw e;
     }
-    const rows = await getDonationHistory(donor_id);
 
-    //no result
-    if (rows.length === 0) {
+    // 1) Source of truth: PG rows (item-per-row)
+    const rows = await getDonationHistory(donor_id);  // :contentReference[oaicite:5]{index=5}
+
+    // 2) Upsert into Mongo (one doc per donation)
+    await upsertDonationHistory(donor_id, rows);
+
+    // 3) Read from Mongo
+    const docs = await listDonationHistoryFromMongo(donor_id);
+
+    // 4) Flatten docs back to PG-like rows that your React expects  :contentReference[oaicite:6]{index=6}
+    const flat = [];
+    for (const d of docs) {
+      for (const it of (d.items || [])) {
+        flat.push({
+          donation_id: d.donation_id,
+          food_name: it.food_name,
+          category: it.category,
+          qty: it.qty,
+          unit: it.unit,
+          expiry_date: it.expiry_date,
+          location_name: d.location_name,
+          donated_at: d.donated_at,
+          approve_status: d.approve_status
+        });
+      }
+    }
+
+    if (flat.length === 0) {
       return res.status(404).json({ ok: false, error: "Not found" });
     }
 
-    res.json({ ok: true, items: rows });
+    return res.json({ ok: true, items: flat });
   } catch (err) {
-    console.error(err);
+    console.error("GET /donation/history error:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
-
 module.exports = router;
