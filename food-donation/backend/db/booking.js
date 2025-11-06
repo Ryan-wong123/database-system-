@@ -1,9 +1,9 @@
-// db/booking.js
-const db = require('./index'); // your pg Pool or client
+// pgPool/booking.js
+const { pgPool } = require('./index'); // your pg Pool or client
 
 async function createBooking({ user_id, location_id, slot_start, slot_end, household_id, items }) {
   const itemsJson = Array.isArray(items) ? JSON.stringify(items) : '[]';
-  const { rows } = await db.query(
+  const { rows } = await pgPool.query(
     `SELECT booking_id, status, slot_start, slot_end
      FROM sp_create_booking($1, $2, $3, $4, $5, $6::jsonb);`,
     [user_id, location_id, slot_start, slot_end, (household_id ?? null), itemsJson]
@@ -12,7 +12,7 @@ async function createBooking({ user_id, location_id, slot_start, slot_end, house
 }
 
 async function updateBookingStatus(booking_id, status) {
-  const { rows } = await db.query(
+  const { rows } = await pgPool.query(
     `SELECT booking_id, status
      FROM sp_update_booking_status($1, $2);`,
     [booking_id, status]
@@ -21,7 +21,7 @@ async function updateBookingStatus(booking_id, status) {
 }
 
 async function getBookingHistoryByUser(user_id) {
-  const { rows } = await db.query(
+  const { rows } = await pgPool.query(
     `SELECT booking_id, location_id, location_name, slot_start, slot_end,
             status, created_at, items_count, items   -- <<< include items
      FROM sp_booking_history_by_user($1)
@@ -33,7 +33,7 @@ async function getBookingHistoryByUser(user_id) {
 
 // Optional: by household (if you ever need it)
 async function getBookingHistoryByHousehold(household_id) {
-  const { rows } = await db.query(
+  const { rows } = await pgPool.query(
     `SELECT booking_id, location_id, location_name, slot_start, slot_end, status, created_at, items_count
      FROM sp_booking_history_by_household($1)
      ORDER BY slot_start DESC;`,
@@ -43,7 +43,7 @@ async function getBookingHistoryByHousehold(household_id) {
 }
 async function requireHousehold(req, res, next) {
   try {
-    const { rows } = await db.query(
+    const { rows } = await pgPool.query(
       `SELECT 1
        FROM HouseholdMembers
        WHERE user_id = $1
