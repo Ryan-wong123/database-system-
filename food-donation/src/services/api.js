@@ -130,5 +130,10 @@ export const DoneeAPI = {
   getHousehold: () => api.get('/households/me'),
   leaveHousehold: () => api.delete('/households/me'),
 };
-
+export const RecommendationsAPI = {
+  semanticSearch: async ({ q, location_id }) => {
+    const { data } = await api.post("/recommendations/semantic-search", { q, location_id });
+    return data;
+  }
+};
 export default api;
