@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { recommendItemsForHousehold } = require("../services/recommendations");
+const { recommendItemsForHousehold } = require("../db/booking");
 
 // +++ add these lines +++
 const { connectMongo } = require("../db/index");
