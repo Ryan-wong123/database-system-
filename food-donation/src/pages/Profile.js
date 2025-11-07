@@ -14,15 +14,12 @@ export default function Profile() {
   const [loadingHousehold, setLoadingHousehold] = useState(true);
   const [hasBookings, setHasBookings] = useState(false);
 
-  // --- NEW: household profile state ---
+  // --- Household profile state (diet only) ---
   const [loadingHHProfile, setLoadingHHProfile] = useState(false);
   const [savingHHProfile, setSavingHHProfile] = useState(false);
   const [hhProfile, setHhProfile] = useState({
-    preferences: { diet: '', avoids: [], notes: '' },
-    address: '',
-    allergies_notes: '',
+    preferences: { diet: '' },
   });
-  const [avoidCsv, setAvoidCsv] = useState(''); // UI helper
 
   useEffect(() => {
     async function fetchHousehold() {
@@ -36,6 +33,7 @@ export default function Profile() {
       }
     }
     fetchHousehold();
+
     (async () => {
       try {
         const resp = await BookingAPI.historyMine();
@@ -55,15 +53,10 @@ export default function Profile() {
     window.fetchHousehold = fetchHousehold;
   }, []);
 
-  // --- NEW: load household profile when household exists ---
+  // --- Load household profile when household exists (diet only) ---
   useEffect(() => {
     if (!household?.household_id) {
-      setHhProfile({
-        preferences: { diet: '', avoids: [], notes: '' },
-        address: '',
-        allergies_notes: '',
-      });
-      setAvoidCsv('');
+      setHhProfile({ preferences: { diet: '' } });
       return;
     }
     (async () => {
@@ -72,23 +65,13 @@ export default function Profile() {
         const res = await HouseholdProfilesAPI.me();
         const data = res?.data?.data || null;
         if (!data) {
-          setHhProfile({
-            preferences: { diet: '', avoids: [], notes: '' },
-            address: '',
-            allergies_notes: '',
-          });
-          setAvoidCsv('');
+          setHhProfile({ preferences: { diet: '' } });
         } else {
           setHhProfile({
             preferences: {
               diet: data.preferences?.diet ?? '',
-              avoids: Array.isArray(data.preferences?.avoids) ? data.preferences.avoids : [],
-              notes: data.preferences?.notes ?? '',
             },
-            address: data.address ?? '',
-            allergies_notes: data.allergies_notes ?? '',
           });
-          setAvoidCsv((data.preferences?.avoids || []).join(', '));
         }
       } catch (e) {
         console.error('Failed to load household profile', e);
@@ -135,7 +118,7 @@ export default function Profile() {
     }
   };
 
-  // --- NEW: save household profile (create/update) ---
+  // --- Save household profile (diet only) ---
   const handleSaveHHProfile = async (e) => {
     e.preventDefault();
     if (!household?.household_id) {
@@ -147,14 +130,7 @@ export default function Profile() {
       const payload = {
         preferences: {
           diet: hhProfile.preferences.diet || null,
-          avoids: avoidCsv
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean),
-          notes: hhProfile.preferences.notes || null,
         },
-        address: hhProfile.address || null,
-        allergies_notes: hhProfile.allergies_notes || null,
       };
       const res = await HouseholdProfilesAPI.upsert(payload);
       if (res?.data?.data) {
@@ -294,7 +270,7 @@ export default function Profile() {
                 </button>
               </div>
 
-              {/* --- NEW: Household Profile editor --- */}
+              {/* Household Profile editor (diet only) */}
               <div className="mt-4">
                 <h6 className="fw-bold mb-2">Household Profile</h6>
                 {loadingHHProfile ? (
@@ -314,49 +290,6 @@ export default function Profile() {
                           }))}
                         />
                       </div>
-                      <div className="col-md-6 mb-3">
-                        <label className="form-label">Avoids (comma-separated)</label>
-                        <input
-                          className="form-control"
-                          placeholder="e.g., peanut, pork, shellfish"
-                          value={avoidCsv}
-                          onChange={(e) => setAvoidCsv(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mb-3">
-                      <label className="form-label">Preference Notes</label>
-                      <textarea
-                        className="form-control"
-                        rows={3}
-                        placeholder="Any additional notes"
-                        value={hhProfile.preferences.notes}
-                        onChange={(e) => setHhProfile(p => ({
-                          ...p,
-                          preferences: { ...p.preferences, notes: e.target.value }
-                        }))}
-                      />
-                    </div>
-
-                    <div className="row">
-                      <div className="col-md-6 mb-3">
-                        <label className="form-label">Address (optional)</label>
-                        <input
-                          className="form-control"
-                          value={hhProfile.address}
-                          onChange={(e) => setHhProfile(p => ({ ...p, address: e.target.value }))}
-                        />
-                      </div>
-                      <div className="col-md-6 mb-3">
-                        <label className="form-label">Allergies Notes</label>
-                        <input
-                          className="form-control"
-                          placeholder="e.g., lactose intolerance"
-                          value={hhProfile.allergies_notes}
-                          onChange={(e) => setHhProfile(p => ({ ...p, allergies_notes: e.target.value }))}
-                        />
-                      </div>
                     </div>
 
                     <div className="d-flex justify-content-between">
@@ -364,7 +297,7 @@ export default function Profile() {
                         {savingHHProfile ? 'Saving…' : 'Save Profile'}
                       </button>
                       <span className="text-muted small">
-                        Profiles are stored in MongoDB and linked by household.
+                        Only diet is stored. (Avoids, notes, address, allergies removed)
                       </span>
                     </div>
                   </form>
