@@ -1,8 +1,17 @@
-// Booking.js (drop-in replacement)
+// Booking.js (with embedding-driven recommendations for the item dropdown)
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UseFetchData from '../hooks/useFetchData';
 import { BookingAPI, InventoryAPI, LocationsAPI, HouseholdAPI } from '../services/api';
+
+// --- tiny in-file helper to call your recommendations endpoint (no new files needed) ---
+async function getHouseholdLocationRecs(householdId, locationId, limit = 12) {
+  const url = `/recommendations?household_id=${Number(householdId)}&location_id=${Number(locationId)}&limit=${Number(limit)}`;
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
+  if (!res.ok) throw new Error(`Recommendations failed: ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data.items) ? data.items : [];
+}
 
 export default function Booking() {
   const [form, setForm] = useState({ location_id: '', slot_start: '', slot_end: '' });
@@ -11,15 +20,34 @@ export default function Booking() {
   const [message, setMessage] = useState('');
   const nav = useNavigate();
 
-  // Require household membership (redirect to profile if missing)
+  // NEW: we’ll store the household_id so we can fetch recs
+  const [householdId, setHouseholdId] = useState(null);
+
+  // Require household membership (redirect to profile if missing) + capture household_id
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const res = await HouseholdAPI.me();
-        const household = res?.data?.data ?? res?.data?.household ?? res?.household ?? null;
+        const household =
+          res?.data?.data ??
+          res?.data?.household ??
+          res?.household ??
+          null;
+
         if (!mounted) return;
-        if (!household) nav('/profile?reason=no-household', { replace: true });
+
+        if (!household) {
+          nav('/profile?reason=no-household', { replace: true });
+        } else {
+          // support shapes like { household_id } or { id }
+          const hid =
+            household.household_id ??
+            household.id ??
+            household?.[0]?.household_id ??
+            null;
+          if (hid != null) setHouseholdId(Number(hid));
+        }
       } catch {
         if (mounted) nav('/profile?reason=no-household', { replace: true });
       }
@@ -34,13 +62,38 @@ export default function Booking() {
 
   // Refetch inventory when a location is chosen
   const inventory = UseFetchData(
-  () => {
-    if (!form.location_id) return Promise.resolve({ data: [] });
-    const locId = Number(form.location_id);
-    return InventoryAPI.list({ location_id: locId }); // server accepts this param
-  },
-  [form.location_id] // <— refetch when location changes
-);
+    () => {
+      if (!form.location_id) return Promise.resolve({ data: [] });
+      const locId = Number(form.location_id);
+      return InventoryAPI.list({ location_id: locId }); // server accepts this param
+    },
+    [form.location_id] // <— refetch when location changes
+  );
+
+  // NEW: recommendations fetched whenever both householdId and location_id are set
+  const [recItems, setRecItems] = useState([]);       // [{ item_id, name, category?, score? }]
+  const [recLoading, setRecLoading] = useState(false);
+  const [recError, setRecError] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setRecError(null);
+      setRecItems([]);
+      if (!householdId || !form.location_id) return;
+
+      try {
+        setRecLoading(true);
+        const items = await getHouseholdLocationRecs(householdId, Number(form.location_id), 12);
+        if (active) setRecItems(items);
+      } catch (e) {
+        if (active) setRecError(e?.message || 'Failed to load recommendations');
+      } finally {
+        if (active) setRecLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [householdId, form.location_id]);
 
   // Row helpers for requested items
   const updateRequested = (idx, key, value) =>
@@ -54,32 +107,67 @@ export default function Booking() {
 
   // Options
   const locationOptions = Array.isArray(locations.data) ? locations.data : [];
-const invRows = useMemo(() => {
-  const d = inventory.data;
-  if (Array.isArray(d)) return d;                 // plain array (db/queries.js -> rows)
-  if (d && Array.isArray(d.items)) return d.items; // wrapped { items: [...] } (Inventory page style)
-  return [];
-}, [inventory.data]);
-  // Build item options from inventory (aggregate lots by food_item_id at the selected location)
- const itemOptions = useMemo(() => {
-  const today = new Date().toISOString().slice(0,10);
-  const map = new Map(); // id -> { name, total }
 
-  for (const row of invRows) {
-    const fid = Number(row.food_item_id ?? row.item_id ?? row.id);
-    const qty = Number(row.qty ?? row.quantity ?? 0);
-    const exp = String(row.expiry_date ?? row.expiry ?? '') || null;
-    if (!Number.isInteger(fid) || qty <= 0) continue;
-    if (exp && exp < today) continue;
+  const invRows = useMemo(() => {
+    const d = inventory.data;
+    if (Array.isArray(d)) return d;                  // plain array (db/queries.js -> rows)
+    if (d && Array.isArray(d.items)) return d.items; // wrapped { items: [...] } (Inventory page style)
+    return [];
+  }, [inventory.data]);
 
-    const name = String(row.name ?? row.label ?? `Item #${fid}`);
-    map.set(fid, { name, total: (map.get(fid)?.total ?? 0) + qty });
-  }
+  // Build a quick totals map from inventory for the selected location
+  const totalsByItemId = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const map = new Map();
+    for (const row of invRows) {
+      const fid = Number(row.food_item_id ?? row.item_id ?? row.id);
+      const qty = Number(row.qty ?? row.quantity ?? 0);
+      const exp = String(row.expiry_date ?? row.expiry ?? '') || null;
+      if (!Number.isInteger(fid) || qty <= 0) continue;
+      if (exp && exp < today) continue; // skip expired lots
+      map.set(fid, (map.get(fid) ?? 0) + qty);
+    }
+    return map;
+  }, [invRows]);
 
-  return Array.from(map.entries())
-    .sort((a, b) => a[1].name.localeCompare(b[1].name, undefined, { sensitivity: 'base' }))
-    .map(([id, v]) => ({ id, label: `${v.name} (${v.total} available)`, total: v.total, disabled: v.total <= 0 }));
-}, [invRows]);
+  // Recommended options (preferred): show household-aware recs, but annotate with available qty
+  const recommendedOptions = useMemo(() => {
+    if (!Array.isArray(recItems) || recItems.length === 0) return [];
+    return recItems.map((it) => {
+      const id = Number(it.item_id ?? it.id);
+      const total = totalsByItemId.get(id) ?? 0;  // cross-check against live inventory
+      const scorePart = typeof it.score === 'number' ? ` ★${it.score.toFixed(2)}` : '';
+      return {
+        id,
+        total,
+        disabled: total <= 0, // disable if nothing available now at this location
+        label: `${it.name}${scorePart} (${total} available)`,
+      };
+    });
+  }, [recItems, totalsByItemId]);
+
+  // Fallback: alphabetical inventory options (when no recs)
+  const fallbackInventoryOptions = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const map = new Map(); // id -> { name, total }
+    for (const row of invRows) {
+      const fid = Number(row.food_item_id ?? row.item_id ?? row.id);
+      const qty = Number(row.qty ?? row.quantity ?? 0);
+      const exp = String(row.expiry_date ?? row.expiry ?? '') || null;
+      if (!Number.isInteger(fid) || qty <= 0) continue;
+      if (exp && exp < today) continue;
+
+      const name = String(row.name ?? row.label ?? `Item #${fid}`);
+      map.set(fid, { name, total: (map.get(fid)?.total ?? 0) + qty });
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].name.localeCompare(b[1].name, undefined, { sensitivity: 'base' }))
+      .map(([id, v]) => ({ id, label: `${v.name} (${v.total} available)`, total: v.total, disabled: v.total <= 0 }));
+  }, [invRows]);
+
+  // Choose options: prefer recommendations (when present), else fallback to inventory
+  const itemOptions = recommendedOptions.length > 0 ? recommendedOptions : fallbackInventoryOptions;
+
   // If location changes, clear selections not valid for this location
   useEffect(() => {
     const validIds = new Set(itemOptions.filter(o => !o.disabled).map(o => o.id));
@@ -129,7 +217,7 @@ const invRows = useMemo(() => {
         setMessage(`Row ${i + 1}: Quantity must be at least 1.`);
         return false;
       }
-      // Optional: prevent exceeding available quantity at this location
+      // Prevent exceeding available quantity at this location
       if (q > opt.total) {
         setMessage(`Row ${i + 1}: Only ${opt.total} available for this item at this location.`);
         return false;
@@ -146,9 +234,9 @@ const invRows = useMemo(() => {
 
     const payload = {
       location_id: Number(form.location_id),
-  slot_start: new Date(form.slot_start).toISOString(),
-  slot_end:   new Date(form.slot_end).toISOString(),
-  items: requested.map(r => ({ food_item_id: Number(r.item_id), qty: Number(r.qty) })),
+      slot_start: new Date(form.slot_start).toISOString(),
+      slot_end:   new Date(form.slot_end).toISOString(),
+      items: requested.map(r => ({ food_item_id: Number(r.item_id), qty: Number(r.qty) })),
     };
 
     setBusy(true);
@@ -163,6 +251,8 @@ const invRows = useMemo(() => {
       setBusy(false);
     }
   };
+
+  const showRecBanner = recLoading || recError || recommendedOptions.length > 0;
 
   return (
     <div className="d-grid gap-3">
@@ -225,12 +315,17 @@ const invRows = useMemo(() => {
 
           {/* Items */}
           <div>
-            <h3 className="h6 mb-2">Requested Items</h3>
+            <div className="d-flex align-items-center justify-content-between">
+              <h3 className="h6 mb-2">
+                Requested Items {showRecBanner && <small className="text-muted">— {recLoading ? 'Loading recommendations…' : recError ? 'Recommendations unavailable' : 'Recommended for you'}</small>}
+              </h3>
+            </div>
+
             <div className="table-responsive">
               <table className="table align-middle">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 280 }}>Item (from inventory)</th>
+                    <th style={{ minWidth: 280 }}>Item {recommendedOptions.length > 0 ? '(recommended)' : '(from inventory)'}</th>
                     <th style={{ width: 140 }}>Quantity</th>
                     <th style={{ width: 120 }}></th>
                   </tr>
@@ -240,22 +335,34 @@ const invRows = useMemo(() => {
                     <tr key={idx}>
                       <td>
                         <select
-  className="form-select"
-  value={row.item_id}
-  onChange={(e) => updateRequested(idx, 'item_id', e.target.value)}
-  required
-  disabled={inventory.loading || !form.location_id}
->
-  <option value="" disabled>
-    {!form.location_id ? 'Select a location first' : (inventory.loading ? 'Loading inventory…' : 'Select an item')}
-  </option>
-  {itemOptions.map(it => (
-    <option key={it.id} value={it.id} disabled={it.disabled}>{it.label}</option>
-  ))}
-</select>
+                          className="form-select"
+                          value={row.item_id}
+                          onChange={(e) => updateRequested(idx, 'item_id', e.target.value)}
+                          required
+                          disabled={inventory.loading || !form.location_id || recLoading}
+                        >
+                          <option value="" disabled>
+                            {!form.location_id
+                              ? 'Select a location first'
+                              : recLoading
+                                ? 'Loading recommendations…'
+                                : inventory.loading
+                                  ? 'Loading inventory…'
+                                  : itemOptions.length
+                                    ? 'Select an item'
+                                    : 'No items available'}
+                          </option>
+                          {itemOptions.map(it => (
+                            <option key={it.id} value={it.id} disabled={it.disabled}>
+                              {it.label}
+                            </option>
+                          ))}
+                        </select>
 
-                        {inventory.error && (
-                          <div className="text-danger small mt-1">Failed to load items.</div>
+                        {(inventory.error || recError) && (
+                          <div className="text-danger small mt-1">
+                            {recError ? `Recommendations error: ${recError}` : 'Failed to load items.'}
+                          </div>
                         )}
                       </td>
                       <td>

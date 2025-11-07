@@ -1,8 +1,12 @@
+// routes/recommendations.js
 const express = require("express");
 const router = express.Router();
+
+const { recommendItemsForHousehold } = require("../db/booking");
+
+// +++ add these lines +++
 const { connectMongo } = require("../db/index");
 const OpenAI = require("openai");
-
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "text-embedding-3-small";
 const VECTOR_INDEX = process.env.MONGO_VECTOR_INDEX || "embedding_idx";
@@ -39,7 +43,28 @@ function pipeline(queryVector) {
     },
   ];
 }
+// +++ end add +++
 
+// GET /api/recommendations?household_id=123&location_id=5&limit=12
+router.get("/", async (req, res) => {
+  try {
+    const householdId = Number(req.query.household_id);
+    const locationId  = Number(req.query.location_id);
+    const limit       = req.query.limit ? Number(req.query.limit) : 12;
+
+    if (!Number.isInteger(householdId) || !Number.isInteger(locationId)) {
+      return res.status(400).json({ error: "household_id and location_id are required integers" });
+    }
+
+    const results = await recommendItemsForHousehold({ householdId, locationId, limit });
+    res.json({ items: results });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// POST /api/recommendations/semantic-search  { q: "high protein, halal" }
 router.post("/semantic-search", async (req, res) => {
   try {
     const { q } = req.body || {};
@@ -53,13 +78,12 @@ router.post("/semantic-search", async (req, res) => {
     const qVec = await textToEmbedding(String(q).trim());
     const results = await col.aggregate(pipeline(qVec)).toArray();
 
-    // normalize expiry format for UI
     const normalized = results.map(r => ({
       ...r,
-      expiry: r.expiry ? new Date(r.expiry).toISOString().slice(0, 10) : null
+      expiry: r.expiry ? new Date(r.expiry).toISOString().slice(0, 10) : null,
     }));
 
-    return res.json({ ok: true, count: normalized.length, results: normalized });
+    res.json({ ok: true, count: normalized.length, results: normalized });
   } catch (err) {
     console.error("Semantic search error:", err);
     res.status(500).json({ ok: false, error: "Semantic search failed." });
