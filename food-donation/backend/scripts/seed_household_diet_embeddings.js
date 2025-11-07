@@ -1,20 +1,15 @@
+// scripts/seed_household_diet_embeddings.js
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const { pgPool, connectMongoose } = require("../db/index");
 const OpenAI = require("openai");
-const mongoose = require("mongoose");
-const { Int32 } = require("mongodb");
+const Household = require("../db/mongo_schema/household_diet_semantics"); // <-- NEW
 
-// --- env guards ---
 if (!process.env.OPENAI_API_KEY) { console.error("❌ OPENAI_API_KEY missing"); process.exit(1); }
 if (!process.env.MONGO_URI)      { console.error("❌ MONGO_URI missing");      process.exit(1); }
 
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "text-embedding-3-small";
-
-// Write to a NEW collection to bypass the old validator (no collMod needed)
-const TARGET = process.env.HH_COLLECTION || "household_profiles";
-
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /** Build text to embed (deterministic) */
@@ -51,13 +46,10 @@ async function fetchHouseholdDietSummariesFromPG() {
   return rows; // [{ household_id, diets: [...] }]
 }
 
-/** Batch embed via OpenAI */
 async function embedBatch(texts) {
   const resp = await openai.embeddings.create({
     model: EMBEDDING_MODEL,
     input: texts,
-    // If you standardized to 1536 dims with this model, no need to pass dimensions.
-    // If you switch to text-embedding-3-large but still want 1536, pass { dimensions: 1536 } here.
   });
   return resp.data.map(d => d.embedding);
 }
@@ -65,9 +57,6 @@ async function embedBatch(texts) {
 async function main() {
   await connectMongoose();
   console.log("✅ Connected to MongoDB (via Mongoose)");
-
-  const col = mongoose.connection.collection(TARGET);
-  console.log("↳ Writing to collection:", TARGET);
 
   // 1) roll up household diet preferences
   const rows = await fetchHouseholdDietSummariesFromPG();
@@ -86,17 +75,12 @@ async function main() {
 
     const ops = chunk.map((r, idx) => {
       const diet = (r.diets && r.diets.length) ? r.diets.join(", ") : null;
-
-      // Ensure validator-friendly types:
-      // - household_id as BSON Int32
-      // - embedding as double[]
-      // - updated_at as date
       return {
         updateOne: {
-          filter: { household_id: new Int32(r.household_id) },
+          filter: { household_id: Number(r.household_id) },
           update: {
             $set: {
-              household_id: new Int32(r.household_id),
+              household_id: Number(r.household_id),
               preferences: { diet, avoids: null, notes: null },
               embedding: vectors[idx].map(Number),
               updated_at: new Date(),
@@ -107,20 +91,8 @@ async function main() {
       };
     });
 
-    try {
-      // If your user has the privilege, you can add { bypassDocumentValidation: true }
-      await col.bulkWrite(ops, { ordered: false /*, bypassDocumentValidation: true */ });
-      console.log(`⬆️ Upserted ${ops.length} household embeddings…`);
-    } catch (e) {
-      console.error("❌ BulkWriteError:", e.message);
-      if (e.writeErrors?.length) {
-        console.error(
-          "Validation details:",
-          JSON.stringify(e.writeErrors[0].err?.errInfo?.details, null, 2)
-        );
-      }
-      process.exit(1);
-    }
+    await Household.bulkWrite(ops, { ordered: false }); // <-- same pattern as food seeder
+    console.log(`⬆️ Upserted ${ops.length} household embeddings…`);
   }
 
   console.log("✅ Finished seeding household diet embeddings");
