@@ -90,7 +90,10 @@ export const HouseholdAPI = {
   join: (pin) => api.post('/households/join', { pin }),
   leave: () => api.delete('/households/me'),
 };
-
+export const HouseholdProfilesAPI = {
+  me:    () => api.get('/profile/me'),
+  upsert:(payload) => api.put('/profile', payload),
+};
 export const LocationsAPI = {
   list: () => api.get('/locations'),
   updateItem: (itemId, payload) => api.patch(`/items/${itemId}`, payload), // {name?, category?}

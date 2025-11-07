@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { DoneeAPI, BookingAPI } from '../services/api';
+import { DoneeAPI, BookingAPI, HouseholdProfilesAPI } from '../services/api';
 import '../index.css';
 
 export default function Profile() {
@@ -13,82 +13,162 @@ export default function Profile() {
   const [household, setHousehold] = useState(null);
   const [loadingHousehold, setLoadingHousehold] = useState(true);
   const [hasBookings, setHasBookings] = useState(false);
+
+  // --- NEW: household profile state ---
+  const [loadingHHProfile, setLoadingHHProfile] = useState(false);
+  const [savingHHProfile, setSavingHHProfile] = useState(false);
+  const [hhProfile, setHhProfile] = useState({
+    preferences: { diet: '', avoids: [], notes: '' },
+    address: '',
+    allergies_notes: '',
+  });
+  const [avoidCsv, setAvoidCsv] = useState(''); // UI helper
+
   useEffect(() => {
-  async function fetchHousehold() {
+    async function fetchHousehold() {
+      try {
+        const res = await DoneeAPI.getHousehold();
+        setHousehold(res.data?.data || null);
+      } catch (err) {
+        console.error('Failed to load household:', err);
+      } finally {
+        setLoadingHousehold(false);
+      }
+    }
+    fetchHousehold();
+    (async () => {
+      try {
+        const resp = await BookingAPI.historyMine();
+        const items = Array.isArray(resp) ? resp
+                    : Array.isArray(resp?.items) ? resp.items
+                    : Array.isArray(resp?.data) ? resp.data
+                    : Array.isArray(resp?.data?.items) ? resp.data.items
+                    : [];
+        setHasBookings(items.length > 0);
+      } catch (e) {
+        setHasBookings(false);
+        console.warn('Could not load booking history; backend will enforce leave rule.', e);
+      }
+    })();
+
+    // expose for refresh after create/join
+    window.fetchHousehold = fetchHousehold;
+  }, []);
+
+  // --- NEW: load household profile when household exists ---
+  useEffect(() => {
+    if (!household?.household_id) {
+      setHhProfile({
+        preferences: { diet: '', avoids: [], notes: '' },
+        address: '',
+        allergies_notes: '',
+      });
+      setAvoidCsv('');
+      return;
+    }
+    (async () => {
+      setLoadingHHProfile(true);
+      try {
+        const res = await HouseholdProfilesAPI.me();
+        const data = res?.data?.data || null;
+        if (!data) {
+          setHhProfile({
+            preferences: { diet: '', avoids: [], notes: '' },
+            address: '',
+            allergies_notes: '',
+          });
+          setAvoidCsv('');
+        } else {
+          setHhProfile({
+            preferences: {
+              diet: data.preferences?.diet ?? '',
+              avoids: Array.isArray(data.preferences?.avoids) ? data.preferences.avoids : [],
+              notes: data.preferences?.notes ?? '',
+            },
+            address: data.address ?? '',
+            allergies_notes: data.allergies_notes ?? '',
+          });
+          setAvoidCsv((data.preferences?.avoids || []).join(', '));
+        }
+      } catch (e) {
+        console.error('Failed to load household profile', e);
+      } finally {
+        setLoadingHHProfile(false);
+      }
+    })();
+  }, [household?.household_id]);
+
+  const handleCreateHousehold = async (e) => {
+    e.preventDefault();
     try {
-      const res = await DoneeAPI.getHousehold();
-      setHousehold(res.data?.data || null);
-    } catch (err) {
-      console.error('Failed to load household:', err);
-    } finally {
-      setLoadingHousehold(false);
-    }
-  }
-  fetchHousehold();
-  (async () => {
-     try {
-       const resp = await BookingAPI.historyMine(); // { ok, items: [...] } or array
-       const items = Array.isArray(resp) ? resp
-                   : Array.isArray(resp?.items) ? resp.items
-                   : Array.isArray(resp?.data) ? resp.data
-                   : Array.isArray(resp?.data?.items) ? resp.data.items
-                   : [];
-       setHasBookings(items.length > 0);
-     } catch (e) {
-       // If the call fails, default to letting the backend enforce the rule later
-       setHasBookings(false);
-       console.warn('Could not load booking history; backend will enforce leave rule.', e);
-     }
-   })();
-  window.fetchHousehold = fetchHousehold;
-}, []);
-
-const handleCreateHousehold = async (e) => {
-  e.preventDefault();
-  try {
-    await DoneeAPI.createHousehold({
-      name: householdName,
-      donee_id: user.id,
-    });
-    alert('Household created successfully!');
-    setShowCreate(false);
-
-    await window.fetchHousehold();
-  } catch (err) {
-    alert('Failed to create household.');
-  }
-};
-
-const handleJoinHousehold = async (e) => {
-  e.preventDefault();
-
-  if (!joinCode.trim()) {
-    alert("Please enter a valid household PIN.");
-    return;
-  }
-
-  try {
-    const res = await DoneeAPI.joinHousehold({ pin: joinCode });
-
-    if (res.data.success) {
-      alert(res.data.message || "Joined household successfully!");
-      
-      // ✅ Hide join form and clear field
-      setShowJoin(false);
-      setJoinCode("");
-
-      // ✅ Refresh household info
+      await DoneeAPI.createHousehold({
+        name: householdName,
+        donee_id: user.id,
+      });
+      alert('Household created successfully!');
+      setShowCreate(false);
       await window.fetchHousehold();
-    } else {
-      alert(res.data.error || "Failed to join household.");
+    } catch (err) {
+      alert('Failed to create household.');
     }
-  } catch (err) {
-    console.error("Join household failed:", err);
-    alert(err.response?.data?.error || "Failed to join household.");
-  }
-};
+  };
 
+  const handleJoinHousehold = async (e) => {
+    e.preventDefault();
+    if (!joinCode.trim()) {
+      alert("Please enter a valid household PIN.");
+      return;
+    }
+    try {
+      const res = await DoneeAPI.joinHousehold({ pin: joinCode });
+      if (res.data.success) {
+        alert(res.data.message || "Joined household successfully!");
+        setShowJoin(false);
+        setJoinCode("");
+        await window.fetchHousehold();
+      } else {
+        alert(res.data.error || "Failed to join household.");
+      }
+    } catch (err) {
+      console.error("Join household failed:", err);
+      alert(err.response?.data?.error || "Failed to join household.");
+    }
+  };
 
+  // --- NEW: save household profile (create/update) ---
+  const handleSaveHHProfile = async (e) => {
+    e.preventDefault();
+    if (!household?.household_id) {
+      alert('Join or create a household first.');
+      return;
+    }
+    try {
+      setSavingHHProfile(true);
+      const payload = {
+        preferences: {
+          diet: hhProfile.preferences.diet || null,
+          avoids: avoidCsv
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
+          notes: hhProfile.preferences.notes || null,
+        },
+        address: hhProfile.address || null,
+        allergies_notes: hhProfile.allergies_notes || null,
+      };
+      const res = await HouseholdProfilesAPI.upsert(payload);
+      if (res?.data?.data) {
+        alert('Household profile saved.');
+      } else {
+        alert('Saved (no data returned).');
+      }
+    } catch (e) {
+      console.error('Save profile failed', e);
+      alert('Failed to save profile.');
+    } finally {
+      setSavingHHProfile(false);
+    }
+  };
 
   if (!user) {
     return (
@@ -154,166 +234,220 @@ const handleJoinHousehold = async (e) => {
 
       {/* Donee Section */}
       {isDonee && (
-        <div>
-          <h4 className="fw-bold mb-3">Request Summary</h4>
-          <div className="row text-center mb-4">
-            <div className="col-md-4">
-              <div className="p-3 border rounded shadow-sm">
-                <h5>{user.stats?.totalRequests || 0}</h5>
-                <p className="text-muted">Total Requests</p>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="p-3 border rounded shadow-sm">
-                <h5>{user.stats?.itemsReceived || 0}</h5>
-                <p className="text-muted">Items Received</p>
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="p-3 border rounded shadow-sm">
-                <h5>{user.stats?.activeRequests || 0}</h5>
-                <p className="text-muted">Active Requests</p>
-              </div>
+      <div>
+        <h4 className="fw-bold mb-3">Request Summary</h4>
+        <div className="row text-center mb-4">
+          <div className="col-md-4">
+            <div className="p-3 border rounded shadow-sm">
+              <h5>{user.stats?.totalRequests || 0}</h5>
+              <p className="text-muted">Total Requests</p>
             </div>
           </div>
+          <div className="col-md-4">
+            <div className="p-3 border rounded shadow-sm">
+              <h5>{user.stats?.itemsReceived || 0}</h5>
+              <p className="text-muted">Items Received</p>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="p-3 border rounded shadow-sm">
+              <h5>{user.stats?.activeRequests || 0}</h5>
+              <p className="text-muted">Active Requests</p>
+            </div>
+          </div>
+        </div>
 
-          {/* Household Section */}
-          <div className="mb-4">
-            <h5 className="fw-bold mb-3">Household Management</h5>
+        {/* Household Section */}
+        <div className="mb-4">
+          <h5 className="fw-bold mb-3">Household Management</h5>
 
-            {loadingHousehold ? (
-              <p className="text-muted">Loading household info...</p>
-            ) : household ? (
-              <div className="border rounded p-3 mt-2">
-                <p className="mb-1">
-                  <strong>Household:</strong> {household.household_name}
-                </p>
-                <p className="text-muted small mb-2">
-                  Household PIN: {household.household_pin}
-                </p>
-                <div className="d-flex gap-2">
-                  <button
-                    className="btn btn-outline-danger"
-                    onClick={async () => {
-                      if (hasBookings) {
-                       alert('You have made a booking before, so you cannot leave this household.');
-                       return;
-                       }
-                        if (!window.confirm('Are you sure you want to leave this household?')) return;
-                         try {
-                          await DoneeAPI.leaveHousehold();
-                          alert('Left household successfully');
-                            setHousehold(null);
-                         } catch (err) {
-                           const msg = err?.response?.data?.message || err?.message || 'Failed to leave household.';
-                           alert(msg); // shows backend message like: "You cannot leave... because you have created bookings."
-                         }
-                    }}
-                  >
-                    Leave Household
-                  </button>
-                </div>
-              </div>
-            ) : (
+          {loadingHousehold ? (
+            <p className="text-muted">Loading household info...</p>
+          ) : household ? (
+            <div className="border rounded p-3 mt-2">
+              <p className="mb-1">
+                <strong>Household:</strong> {household.household_name}
+              </p>
+              <p className="text-muted small mb-2">
+                Household PIN: {household.household_pin}
+              </p>
               <div className="d-flex gap-2">
                 <button
-                  className="btn btn-outline-primary"
-                  onClick={() => {
-                    setShowCreate(true);
-                    setShowJoin(false);
+                  className="btn btn-outline-danger"
+                  onClick={async () => {
+                    if (hasBookings) {
+                      alert('You have made a booking before, so you cannot leave this household.');
+                      return;
+                    }
+                    if (!window.confirm('Are you sure you want to leave this household?')) return;
+                    try {
+                      await DoneeAPI.leaveHousehold();
+                      alert('Left household successfully');
+                      setHousehold(null);
+                    } catch (err) {
+                      const msg = err?.response?.data?.message || err?.message || 'Failed to leave household.';
+                      alert(msg);
+                    }
                   }}
                 >
-                  Create Household
-                </button>
-                <button
-                  className="btn btn-outline-secondary"
-                  onClick={() => {
-                    setShowJoin(true);
-                    setShowCreate(false);
-                  }}
-                >
-                  Join Household
+                  Leave Household
                 </button>
               </div>
-            )}
 
-            {/* Create Household Form */}
-            {showCreate && (
-              <form className="mt-3 border rounded p-3" onSubmit={handleCreateHousehold}>
-                <div className="mb-2">
-                  <label className="form-label">Household Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={householdName}
-                    onChange={(e) => setHouseholdName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="d-flex justify-content-between">
-                  <button className="btn btn-primary" type="submit">
-                    Create
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-danger"
-                    onClick={() => setShowCreate(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </form>
-            )}
+              {/* --- NEW: Household Profile editor --- */}
+              <div className="mt-4">
+                <h6 className="fw-bold mb-2">Household Profile</h6>
+                {loadingHHProfile ? (
+                  <p className="text-muted">Loading profile…</p>
+                ) : (
+                  <form onSubmit={handleSaveHHProfile} className="border rounded p-3">
+                    <div className="row">
+                      <div className="col-md-6 mb-3">
+                        <label className="form-label">Diet</label>
+                        <input
+                          className="form-control"
+                          placeholder="e.g., halal, vegetarian"
+                          value={hhProfile.preferences.diet}
+                          onChange={(e) => setHhProfile(p => ({
+                            ...p,
+                            preferences: { ...p.preferences, diet: e.target.value }
+                          }))}
+                        />
+                      </div>
+                      <div className="col-md-6 mb-3">
+                        <label className="form-label">Avoids (comma-separated)</label>
+                        <input
+                          className="form-control"
+                          placeholder="e.g., peanut, pork, shellfish"
+                          value={avoidCsv}
+                          onChange={(e) => setAvoidCsv(e.target.value)}
+                        />
+                      </div>
+                    </div>
 
-            {/* Join Household Form */}
-            {showJoin && (
-              <form className="mt-3 border rounded p-3" onSubmit={handleJoinHousehold}>
-                <div className="mb-2">
-                  <label className="form-label">Household Code</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="d-flex justify-content-between">
-                  <button className="btn btn-secondary" type="submit">
-                    Join
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-danger"
-                    onClick={() => setShowJoin(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
+                    <div className="mb-3">
+                      <label className="form-label">Preference Notes</label>
+                      <textarea
+                        className="form-control"
+                        rows={3}
+                        placeholder="Any additional notes"
+                        value={hhProfile.preferences.notes}
+                        onChange={(e) => setHhProfile(p => ({
+                          ...p,
+                          preferences: { ...p.preferences, notes: e.target.value }
+                        }))}
+                      />
+                    </div>
 
-          {/* Request List */}
-          <h5 className="fw-bold mb-3">Recent Requests</h5>
-          <ul className="list-group">
-            {user.requests?.length ? (
-              user.requests.map((r, i) => (
-                <li key={i} className="list-group-item d-flex justify-content-between">
-                  <span>{r.item}</span>
-                  <span
-                    className={`badge ${r.status === 'Approved' ? 'bg-success' : 'bg-secondary'
-                      }`}
-                  >
-                    {r.status}
-                  </span>
-                </li>
-              ))
-            ) : (
-              <li className="list-group-item text-muted text-center">No requests yet</li>
-            )}
-          </ul>
+                    <div className="row">
+                      <div className="col-md-6 mb-3">
+                        <label className="form-label">Address (optional)</label>
+                        <input
+                          className="form-control"
+                          value={hhProfile.address}
+                          onChange={(e) => setHhProfile(p => ({ ...p, address: e.target.value }))}
+                        />
+                      </div>
+                      <div className="col-md-6 mb-3">
+                        <label className="form-label">Allergies Notes</label>
+                        <input
+                          className="form-control"
+                          placeholder="e.g., lactose intolerance"
+                          value={hhProfile.allergies_notes}
+                          onChange={(e) => setHhProfile(p => ({ ...p, allergies_notes: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="d-flex justify-content-between">
+                      <button className="btn btn-primary" type="submit" disabled={savingHHProfile}>
+                        {savingHHProfile ? 'Saving…' : 'Save Profile'}
+                      </button>
+                      <span className="text-muted small">
+                        Profiles are stored in MongoDB and linked by household.
+                      </span>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="d-flex gap-2">
+              <button
+                className="btn btn-outline-primary"
+                onClick={() => { setShowCreate(true); setShowJoin(false); }}
+              >
+                Create Household
+              </button>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => { setShowJoin(true); setShowCreate(false); }}
+              >
+                Join Household
+              </button>
+            </div>
+          )}
+
+          {/* Create Household Form */}
+          {showCreate && (
+            <form className="mt-3 border rounded p-3" onSubmit={handleCreateHousehold}>
+              <div className="mb-2">
+                <label className="form-label">Household Name</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={householdName}
+                  onChange={(e) => setHouseholdName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="d-flex justify-content-between">
+                <button className="btn btn-primary" type="submit">Create</button>
+                <button type="button" className="btn btn-outline-danger" onClick={() => setShowCreate(false)}>
+                  Close
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Join Household Form */}
+          {showJoin && (
+            <form className="mt-3 border rounded p-3" onSubmit={handleJoinHousehold}>
+              <div className="mb-2">
+                <label className="form-label">Household Code</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="d-flex justify-content-between">
+                <button className="btn btn-secondary" type="submit">Join</button>
+                <button type="button" className="btn btn-outline-danger" onClick={() => setShowJoin(false)}>
+                  Close
+                </button>
+              </div>
+            </form>
+          )}
         </div>
+
+        {/* Request List */}
+        <h5 className="fw-bold mb-3">Recent Requests</h5>
+        <ul className="list-group">
+          {user.requests?.length ? (
+            user.requests.map((r, i) => (
+              <li key={i} className="list-group-item d-flex justify-content-between">
+                <span>{r.item}</span>
+                <span className={`badge ${r.status === 'Approved' ? 'bg-success' : 'bg-secondary'}`}>{r.status}</span>
+              </li>
+            ))
+          ) : (
+            <li className="list-group-item text-muted text-center">No requests yet</li>
+          )}
+        </ul>
+      </div>
       )}
 
       {/* Admin Section */}
@@ -345,18 +479,13 @@ const handleJoinHousehold = async (e) => {
           <ul className="list-group">
             {user.activity?.length ? (
               user.activity.map((a, i) => (
-                <li
-                  key={i}
-                  className="list-group-item d-flex justify-content-between align-items-center"
-                >
+                <li key={i} className="list-group-item d-flex justify-content-between align-items-center">
                   <span>{a.action}</span>
                   <span className="text-muted small">{a.date}</span>
                 </li>
               ))
             ) : (
-              <li className="list-group-item text-muted text-center">
-                No recent activity
-              </li>
+              <li className="list-group-item text-muted text-center">No recent activity</li>
             )}
           </ul>
         </div>
