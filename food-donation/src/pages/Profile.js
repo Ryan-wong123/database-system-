@@ -21,6 +21,9 @@ export default function Profile() {
     preferences: { diet: '' },
   });
 
+  // edit mode for diet
+  const [editingDiet, setEditingDiet] = useState(false);
+
   useEffect(() => {
     async function fetchHousehold() {
       try {
@@ -57,6 +60,8 @@ export default function Profile() {
   useEffect(() => {
     if (!household?.household_id) {
       setHhProfile({ preferences: { diet: '' } });
+      // IMPORTANT: first-time entry mode when no household/diet
+      setEditingDiet(true);
       return;
     }
     (async () => {
@@ -64,17 +69,20 @@ export default function Profile() {
       try {
         const res = await HouseholdProfilesAPI.me();
         const data = res?.data?.data || null;
-        if (!data) {
-          setHhProfile({ preferences: { diet: '' } });
+
+        const diet = data?.preferences?.diet ?? '';
+        setHhProfile({ preferences: { diet } });
+
+        // IMPORTANT: if no saved diet -> allow typing without closing input
+        if (String(diet).trim()) {
+          setEditingDiet(false);   // diet exists -> view mode
         } else {
-          setHhProfile({
-            preferences: {
-              diet: data.preferences?.diet ?? '',
-            },
-          });
+          setEditingDiet(true);    // no diet -> edit mode
         }
       } catch (e) {
         console.error('Failed to load household profile', e);
+        setHhProfile({ preferences: { diet: '' } });
+        setEditingDiet(true);      // fallback to edit mode if load fails / empty
       } finally {
         setLoadingHHProfile(false);
       }
@@ -133,11 +141,14 @@ export default function Profile() {
         },
       };
       const res = await HouseholdProfilesAPI.upsert(payload);
-      if (res?.data?.data) {
-        alert('Household profile saved.');
-      } else {
-        alert('Saved (no data returned).');
-      }
+      // reflect exactly what backend saved so the UI mirrors Postgres
+      const savedDiet = res?.data?.data?.preferences?.diet ?? '';
+      setHhProfile((p) => ({
+        ...p,
+        preferences: { ...p.preferences, diet: savedDiet }
+      }));
+      setEditingDiet(false); // exit edit mode after save
+      alert('Household profile saved.');
     } catch (e) {
       console.error('Save profile failed', e);
       alert('Failed to save profile.');
@@ -280,22 +291,66 @@ export default function Profile() {
                     <div className="row">
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Diet</label>
-                        <input
-                          className="form-control"
-                          placeholder="e.g., halal, vegetarian"
-                          value={hhProfile.preferences.diet}
-                          onChange={(e) => setHhProfile(p => ({
-                            ...p,
-                            preferences: { ...p.preferences, diet: e.target.value }
-                          }))}
-                        />
+
+                        {/* If diet exists and not editing: show text + Edit button */}
+                        {hhProfile.preferences.diet?.trim() && !editingDiet ? (
+                          <div className="d-flex align-items-center gap-2 mt-1">
+                            <span className="fw-semibold">{hhProfile.preferences.diet}</span>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary ms-2"
+                              onClick={() => setEditingDiet(true)}
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        ) : (
+                          // No diet yet OR editing: show input
+                          <input
+                            className="form-control"
+                            placeholder="e.g., halal, vegetarian"
+                            value={hhProfile.preferences.diet}
+                            onChange={(e) => setHhProfile(p => ({
+                              ...p,
+                              preferences: { ...p.preferences, diet: e.target.value }
+                            }))}
+                            disabled={savingHHProfile}
+                          />
+                        )}
                       </div>
                     </div>
 
-                    <div className="d-flex justify-content-between">
-                      <button className="btn btn-primary" type="submit" disabled={savingHHProfile}>
-                        {savingHHProfile ? 'Saving…' : 'Save Profile'}
-                      </button>
+                    <div className="d-flex justify-content-between align-items-center">
+                      {/* Show Save/Cancel when editing or when no diet exists */}
+                      {editingDiet || !hhProfile.preferences.diet?.trim() ? (
+                        <div className="d-flex gap-2">
+                          <button className="btn btn-primary" type="submit" disabled={savingHHProfile}>
+                            {savingHHProfile ? 'Saving…' : 'Save Profile'}
+                          </button>
+                          {editingDiet && (
+                            <button
+                              type="button"
+                              className="btn btn-outline-secondary"
+                              onClick={async () => {
+                                // cancel: reload current from server and exit edit mode
+                                try {
+                                  const res = await HouseholdProfilesAPI.me();
+                                  const data = res?.data?.data || null;
+                                  setHhProfile({
+                                    preferences: { diet: data?.preferences?.diet ?? '' },
+                                  });
+                                } catch {}
+                                setEditingDiet(false);
+                              }}
+                              disabled={savingHHProfile}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span /> /* keep spacing when not editing and a diet exists */
+                      )}
                       <span className="text-muted small">
                         Only diet is stored. (Avoids, notes, address, allergies removed)
                       </span>
