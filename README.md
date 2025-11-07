@@ -98,6 +98,9 @@ $env:EMBEDDING_MODEL = "text-embedding-3-small"
 node backend/scripts/seed_food_embeddings.js
 ```
 
+```
+node backend/scripts/seed_household_diet_embeddings.js
+```
 # Code Structure breakdown
 
 ## Components
