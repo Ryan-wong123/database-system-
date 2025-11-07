@@ -1,14 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { InventoryAPI, RecommendationsAPI } from '../services/api';
+import { InventoryAPI, RecommendationsAPI } from '../services/api'; // ← NEW
 import ItemCard from '../components/ItemCard';
 
-// Normalize anything -> array
+// ← NEW: small helper to normalize API shapes
 function toArray(maybe) {
   if (Array.isArray(maybe)) return maybe;
   if (!maybe || typeof maybe !== 'object') return [];
   if (Array.isArray(maybe.results)) return maybe.results;     // { ok, results: [...] }
-  if (Array.isArray(maybe.data)) return maybe.data;           // axios/hook shape
+  if (Array.isArray(maybe.data)) return maybe.data;           // axios-like
   if (Array.isArray(maybe.rows)) return maybe.rows;           // PG style
   if (maybe.data && Array.isArray(maybe.data.results)) return maybe.data.results;
   return [];
@@ -16,88 +16,173 @@ function toArray(maybe) {
 
 export default function Inventory() {
   const [search, setSearch] = useState('');
-  const [semantic, setSemantic] = useState({ loading: false, data: null, error: null });
 
-  // If UseFetchData returns { data, loading, error }, this still works:
-  const stockResp = UseFetchData(() => InventoryAPI.list({ inStockOnly: true }), []);
-  const stockArray = toArray(stockResp?.data ?? stockResp);
+  // Unified fetch via hook
+  const stock = UseFetchData(() => InventoryAPI.list({ inStockOnly: true }), []);
 
-  async function doSemanticSearch(e) {
-    e.preventDefault();
-    const q = search.trim();
-    if (!q) {
-      setSemantic({ loading: false, data: null, error: null });
+  const itemsData = stock.data || { items: [] };
+
+  // Filter items based on search query (name/category/location)
+  const filteredItems = useMemo(() => {
+    const list = Array.isArray(itemsData.items) ? itemsData.items : [];
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((it) =>
+      [it.name, it.category, it.location_name]
+        .filter(Boolean)
+        .some((val) => String(val).toLowerCase().includes(q))
+    );
+  }, [itemsData, search]);
+
+  // Group filtered items by location
+  const groupedByLocation = useMemo(() => {
+    const map = new Map();
+    for (const it of filteredItems) {
+      const key = it.location_id || it.location_name || 'unknown';
+      if (!map.has(key)) {
+        map.set(key, {
+          location_id: key,
+          location_name: it.location_name || 'Unknown Location',
+          items: [],
+        });
+      }
+      map.get(key).items.push(it);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.location_name.localeCompare(b.location_name)
+    );
+  }, [filteredItems]);
+
+  // =========================
+  // NEW: Similar items (vector)
+  // =========================
+  const [similar, setSimilar] = useState({ loading: false, data: [], error: null });
+
+  async function runSimilarSearch(q) {
+    const query = q.trim();
+    if (!query) {
+      setSimilar({ loading: false, data: [], error: null });
       return;
     }
-    setSemantic({ loading: true, data: null, error: null });
     try {
-      const resp = await RecommendationsAPI.semanticSearch({ q });
-      setSemantic({ loading: false, data: resp, error: null });
+      setSimilar((prev) => ({ ...prev, loading: true, error: null }));
+      const resp = await RecommendationsAPI.semanticSearch({ q: query });
+      const results = toArray(resp);
+
+      // Map to ItemCard props (using denormalized fields if present)
+      const arr = results.map((r) => ({
+        id: r.item_id ?? r.id,
+        name: r.name ?? r.item_name ?? '(Unnamed item)',
+        category: r.category ?? '',
+        qty: Number(r.qty ?? r.qty_total ?? 0),
+        expiry: r.expiry ?? r.min_expiry ?? null,
+        location:
+          r.primary_location_name ||
+          r.locations_display ||
+          (Array.isArray(r.locations) && r.locations[0]?.name) ||
+          '',
+      }));
+
+      setSimilar({ loading: false, data: arr, error: null });
     } catch (err) {
-      console.error(err);
-      setSemantic({ loading: false, data: null, error: 'Search failed' });
+      console.error('❌ Similar (vector) search error:', err);
+      setSimilar({ loading: false, data: [], error: 'Failed to load similar items' });
     }
   }
 
-    const itemsToShow = useMemo(() => {
-    const sem = toArray(semantic?.data);
+  // Debounced effect: whenever search changes, refresh the similar strip
+  useEffect(() => {
+    const t = setTimeout(() => {
+      runSimilarSearch(search);
+    }, 300); // debounce ~300ms
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
-    console.log("🔵 [FRONTEND] semantic results normalized:", sem);
-
-    // ✅ Replace your existing `if (semantic?.data?.ok && semResults.length) { ... }`
-    //    with this block so we also forward category/expiry coming from Mongo.
-    if (semantic?.data?.ok && sem.length) {
-      const arr = sem.map(r => ({
-        id: r.item_id ?? r.id,
-        name: r.name,
-        category: r.category,      // now read from Mongo
-        qty: r.qty,                // qty_total snapshot
-        expiry: r.expiry,          // min_expiry snapshot (YYYY-MM-DD)
-        score: r.score
-      }));
-
-      console.log("🟢 [FRONTEND] itemsToShow (semantic):", arr);
-      return arr;
-    }
-
-    console.log("🟡 [FRONTEND] itemsToShow (stock):", stockArray);
-
-    return stockArray.map(row => ({
-      id: row.item_id ?? row.food_item_id,
-      name: row.name ?? row.item_name,
-      category: row.category ?? row.category_name ?? "",
-      qty: row.qty_total ?? row.qty_on_hand ?? row.qty ?? 0,
-      expiry: row.expiry ?? row.min_expiry ?? null
-    }));
-  }, [semantic, stockArray]);
-
+  const showSimilarStrip =
+    !!search.trim() && !similar.loading && !similar.error && similar.data.length > 0;
 
   return (
-    <div className="p-4">
-      <form onSubmit={doSemanticSearch} className="mb-4 flex gap-2">
+    <div className="d-grid gap-3">
+      <div className="d-flex justify-content-between align-items-center">
+        <h1 className="h4 mb-0">Inventory</h1>
+        {stock.loading && <span className="text-muted small">Loading…</span>}
+        {stock.error && <span className="text-danger small">Failed to load.</span>}
+      </div>
+
+      <div className="mb-3">
         <input
+          type="text"
+          className="form-control"
+          placeholder="Search by name, category, or location..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search (e.g. 'halal chicken', 'dairy-free', 'fresh greens')"
-          className="border rounded px-3 py-2 flex-1"
+          onChange={(e) => setSearch(e.target.value)}
         />
-        <button className="bg-blue-600 text-white rounded px-4">Search</button>
-      </form>
+      </div>
 
-      {semantic.loading && <div>Searching…</div>}
-      {semantic.error && <div className="text-red-600">{semantic.error}</div>}
+      {groupedByLocation.length === 0 && !stock.loading && (
+        <p className="text-muted">No items found.</p>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {itemsToShow.map(it => (
-          <ItemCard
-            key={it.id}
-            name={it.name}
-            category={it.category ?? ""}
-            qty={it.qty}
-            expiry={it.expiry}
-          />
-        ))}
+      {groupedByLocation.map((group) => (
+        <div key={group.location_id} className="mb-4">
+          <div className="d-flex align-items-baseline justify-content-between mb-2">
+            <h2 className="h5 mb-0">{group.location_name}</h2>
+            <span className="badge text-bg-secondary">
+              {group.items.length} item{group.items.length !== 1 ? 's' : ''}
+            </span>
+          </div>
 
+          <div className="row g-3">
+            {group.items.map((it) => (
+              <div key={it.item_id} className="col-md-6">
+                <ItemCard
+                  name={it.name}
+                  category={it.category}
+                  qty={it.qty}
+                  expiry={it.expiry_date}
+                />
+                <div className="small text-muted ms-1">📍 {group.location_name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* ============================== */}
+      {/* NEW: Similar items (vector) UI */}
+      {/* ============================== */}
+      <hr className="my-3" />
+      <div className="d-flex align-items-center justify-content-between">
+        <h3 className="h6 mb-0">Similar items</h3>
+        {similar.loading && <span className="text-muted small">Searching…</span>}
+      </div>
+      {similar.error && <div className="text-danger small mt-1">{similar.error}</div>}
+      <div
+        className="d-flex gap-3 overflow-auto pb-2 mt-2"
+        style={{ scrollSnapType: 'x mandatory', whiteSpace: 'nowrap' }}
+      >
+        {showSimilarStrip ? (
+          similar.data.map((it) => (
+            <div
+              key={it.id}
+              className="card shadow-sm p-2"
+              style={{ minWidth: 260, scrollSnapAlign: 'start' }}
+            >
+              <ItemCard
+                name={it.name}
+                category={it.category}
+                qty={it.qty}
+                expiry={it.expiry}
+              />
+              {it.location && (
+                <div className="small text-muted ms-1 mt-1">📍 {it.location}</div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="text-muted small">Type in the search box to see similar items.</div>
+        )}
       </div>
     </div>
   );
