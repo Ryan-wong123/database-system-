@@ -19,6 +19,7 @@ const dietRoute = require("./routes/diet");
 const bookings = require('./routes/bookings');
 const bookinghistory = require('./routes/bookinghistory');
 const recommendationRoutes = require("./routes/recommendations");
+const profileRoutes = require("./routes/profile");
 
 // app setup
 const app = express();
@@ -52,6 +53,7 @@ app.use("/admin", adminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
 app.use("/recommendations", recommendationRoutes);
+app.use("/profile", profileRoutes);
 
 // ----- MongoDB -----
 if (process.env.MONGO_URI) {
