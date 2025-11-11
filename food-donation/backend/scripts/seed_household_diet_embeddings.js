@@ -107,3 +107,6 @@ async function seed_household_diet_embeddings() {
 }
 
 //main().catch(e => { console.error(e); process.exit(1); });
+module.exports = {
+seed_household_diet_embeddings,
+};

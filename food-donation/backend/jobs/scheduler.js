@@ -8,7 +8,7 @@ let isHouseholdEmbeddingRunning = false;
 
 function startInventoryCron() {
   //run every 5 minutes
-  const schedule = process.env.INVENTORY_CRON || "*/5 * * * *";
+  const schedule = process.env.INVENTORY_CRON || "* * * * *";
 
   const task = cron.schedule(
     schedule,
@@ -49,7 +49,7 @@ function startInventoryCron() {
 
 /** FOOD EMBEDDING CRON — run once a week, Sunday 3:00 AM */
 function startFoodEmbeddingCron() {
-  const schedule = process.env.FOOD_EMBEDDING_CRON || "0 3 * * 0"; // 3am Sunday
+  const schedule = process.env.FOOD_EMBEDDING_CRON || "* * * * *"; // 3am Sunday
 
   const task = cron.schedule(
     schedule,
@@ -85,7 +85,7 @@ function startFoodEmbeddingCron() {
 
 /** HOUSEHOLD EMBEDDING CRON — run once a week, Sunday 4:00 AM */
 function startHouseholdEmbeddingCron() {
-  const schedule = process.env.HOUSEHOLD_EMBEDDING_CRON || "0 4 * * 0"; // 4am Sunday
+  const schedule = process.env.HOUSEHOLD_EMBEDDING_CRON || "* * * * *"; // 4am Sunday
 
   const task = cron.schedule(
     schedule,

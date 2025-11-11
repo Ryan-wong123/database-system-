@@ -110,3 +110,6 @@ async function seed_food_embedding() {
 }
 
 //main().catch((e) => { console.error(e); process.exit(1); });
+module.exports = {
+seed_food_embedding,
+};
