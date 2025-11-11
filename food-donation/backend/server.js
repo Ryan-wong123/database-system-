@@ -5,7 +5,8 @@ const mongoose = require("mongoose");
 const redis = require("redis");
 const cors = require("cors");
 const { decodeToken } = require("./middleware/auth");
-
+const { rateLimit } = require('./middleware/rateLimit');
+const { idempotency } = require('./middleware/idempotency');
 // routes
 const authRoutes = require("./routes/auth");
 const foodItemRoutes = require("./routes/fooditem");
@@ -26,19 +27,19 @@ const {startInventoryCron, startFoodEmbeddingCron, startHouseholdEmbeddingCron} 
 // app setup
 const app = express();
 const PORT = process.env.PORT || 8000;
-
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
 // ✅ Decode JWT BEFORE protected routes
 app.use(decodeToken);
-
+app.use(rateLimit({ windowSec: 60, max: 300 }));
 // ✅ Log every request (helpful for debugging)
 app.use((req, _res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);
   next();
 });
-
+app.use(idempotency({ ttlSec: 24 * 3600 }));
 // ----- PUBLIC ROUTES -----
 app.get("/", (_req, res) => res.send("OK"));
 app.use("/", miscRoutes);

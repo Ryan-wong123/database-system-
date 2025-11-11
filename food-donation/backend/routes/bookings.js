@@ -2,6 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const { createBooking, updateBookingStatus, requireHousehold } = require('../db/booking');
+const { rDel } = require('../redis');  // <-- add
+
+const KEY_HISTORY = (uid) => `booking:history:user:${uid}`;
 
 // Replace with your real auth (JWT); for demo we read a header.
 function requireAuth(req, res, next) {
@@ -15,7 +18,6 @@ function requireAuth(req, res, next) {
 router.post('/', requireAuth, requireHousehold, async (req, res) => {
   const { location_id, slot_start, slot_end, household_id, items } = req.body || {};
   try {
-    // Normalize & validate items
     const normalizedItems = (Array.isArray(items) ? items : []).map((it, idx) => {
       const idNum  = Number(it.food_item_id ?? it.item_id ?? it.id);
       const qtyNum = Number(it.qty);
@@ -38,8 +40,11 @@ router.post('/', requireAuth, requireHousehold, async (req, res) => {
       slot_start,
       slot_end,
       household_id: Number.isFinite(Number(household_id)) ? Number(household_id) : null,
-      items: normalizedItems, // safe
+      items: normalizedItems,
     });
+
+    // Invalidate the creator's booking history cache
+    try { await rDel(KEY_HISTORY(req.user.user_id)); } catch {}
 
     res.status(201).json({ ok: true, booking: row });
   } catch (e) {
@@ -53,16 +58,24 @@ router.post('/', requireAuth, requireHousehold, async (req, res) => {
   }
 });
 
-
 // Optional: update booking status
 router.patch('/:booking_id/status', requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.booking_id);
-    const { status } = req.body || {};
+    const { status, user_id } = req.body || {}; // <-- if you pass the affected user's id, we’ll invalidate their cache too
     if (!Number.isInteger(id)) return res.status(400).json({ ok: false, message: 'Invalid booking_id' });
     if (typeof status !== 'string') return res.status(400).json({ ok: false, message: 'Invalid status' });
 
     const row = await updateBookingStatus(id, status);
+
+    // Invalidate history caches
+    try {
+      if (Number.isInteger(Number(user_id))) {
+        await rDel(KEY_HISTORY(Number(user_id))); // target owner if provided
+      }
+      await rDel(KEY_HISTORY(req.user.user_id));   // and the actor’s own cache
+    } catch {}
+
     res.json({ ok: true, booking: row });
   } catch (e) {
     console.error('PATCH /bookings/:id/status error:', e);

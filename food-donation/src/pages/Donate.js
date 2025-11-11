@@ -126,8 +126,11 @@ export default function Donate() {
   };
 
   // Transform locations
-  const locationOptions = getItems(locations.data).map(item => ({
-    id: item.id,
+  const locationOptions = (Array.isArray(locations.data?.items) ? locations.data.items
+                         : Array.isArray(locations.data) ? locations.data
+                         : [])
+  .map(item => ({
+    id: item.location_id ?? item.id,   // <— key change
     name: item.name
   }));
 
