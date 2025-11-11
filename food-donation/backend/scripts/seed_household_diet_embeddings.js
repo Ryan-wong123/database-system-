@@ -6,6 +6,7 @@ const { pgPool, connectMongoose } = require("../db/index");
 const OpenAI = require("openai");
 const Household = require("../db/mongo_schema/household_diet_semantics"); // <-- NEW
 
+
 if (!process.env.OPENAI_API_KEY) { console.error("❌ OPENAI_API_KEY missing"); process.exit(1); }
 if (!process.env.MONGO_URI)      { console.error("❌ MONGO_URI missing");      process.exit(1); }
 
@@ -20,6 +21,7 @@ function prefsToText(pref = {}) {
   if (pref.notes) parts.push(`Notes: ${pref.notes}`);
   return parts.join("\n") || "Diet: unspecified";
 }
+
 
 /** Aggregate distinct diet flags per household from PostgreSQL */
 async function fetchHouseholdDietSummariesFromPG() {
@@ -54,15 +56,19 @@ async function embedBatch(texts) {
   return resp.data.map(d => d.embedding);
 }
 
-async function main() {
+
+async function seed_household_diet_embeddings() {
   await connectMongoose();
-  console.log("✅ Connected to MongoDB (via Mongoose)");
 
   // 1) roll up household diet preferences
   const rows = await fetchHouseholdDietSummariesFromPG();
 
+  if(!rows || rows.length === 0){
+    return;
+  }
   // 2) embed + upsert in batches
   const BATCH = 100;
+
   for (let i = 0; i < rows.length; i += BATCH) {
     const chunk = rows.slice(i, i + BATCH);
 
@@ -72,6 +78,11 @@ async function main() {
     });
 
     const vectors = await embedBatch(texts);
+
+    if (!vectors || !Array.isArray(vectors) || vectors.length !== chunk.length){
+      console.warn(`[seed] Embedding failed or incomplete (batch ${i / BATCH + 1}), stopping.`);
+      return;
+    }
 
     const ops = chunk.map((r, idx) => {
       const diet = (r.diets && r.diets.length) ? r.diets.join(", ") : null;
@@ -91,12 +102,11 @@ async function main() {
       };
     });
 
-    await Household.bulkWrite(ops, { ordered: false }); // <-- same pattern as food seeder
-    console.log(`⬆️ Upserted ${ops.length} household embeddings…`);
+    const res = await Household.bulkWrite(ops, { ordered: false }); // <-- same pattern as food seeder
   }
-
-  console.log("✅ Finished seeding household diet embeddings");
-  process.exit(0);
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+//main().catch(e => { console.error(e); process.exit(1); });
+module.exports = {
+seed_household_diet_embeddings,
+};

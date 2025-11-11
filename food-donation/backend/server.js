@@ -21,6 +21,8 @@ const bookinghistory = require('./routes/bookinghistory');
 const recommendationRoutes = require("./routes/recommendations");
 const profileRoutes = require("./routes/profile");
 
+const {startInventoryCron, startFoodEmbeddingCron, startHouseholdEmbeddingCron} = require("./jobs/scheduler");
+
 // app setup
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -54,6 +56,11 @@ app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
 app.use("/recommendations", recommendationRoutes);
 app.use("/profile", profileRoutes);
+
+// --- Cron Jobs ---
+startInventoryCron();
+startFoodEmbeddingCron();
+startHouseholdEmbeddingCron();
 
 // ----- MongoDB -----
 if (process.env.MONGO_URI) {
