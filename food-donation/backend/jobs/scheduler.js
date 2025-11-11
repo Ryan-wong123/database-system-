@@ -65,7 +65,7 @@ function startFoodEmbeddingCron() {
       try {
         const res = await seed_food_embedding();
         const ended = new Date();
-        console.log(`[CRON] seed_food_embedding ok: updated=${res.updated}, duration=${ended - started}ms`);
+        console.log(`[CRON] seed_food_embedding ok: duration=${ended - started}ms`);
       } catch (err) {
         console.error("[CRON] seed_food_embedding failed:", err);
       } finally {
@@ -101,7 +101,7 @@ function startHouseholdEmbeddingCron() {
       try {
         const res = await seed_household_diet_embeddings();
         const ended = new Date();
-        console.log(`[CRON] seed_household_diet_embeddings ok: updated=${res.updated}, duration=${ended - started}ms`);
+        console.log(`[CRON] seed_household_diet_embeddings ok: duration=${ended - started}ms`);
       } catch (err) {
         console.error("[CRON] seed_household_diet_embeddings failed:", err);
       } finally {
