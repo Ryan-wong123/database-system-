@@ -61,12 +61,15 @@ async function embedBatch(texts) {
   return resp.data.map(d => d.embedding);
 }
 
-async function main() {
+async function seed_food_embedding() {
   await connectMongoose();
-  console.log("✅ Connected to MongoDB");
 
   // 1) base rows
   const baseRows = await fetchFoodBase();
+  if (!baseRows || baseRows.length === 0) {
+    console.log("No food rows to process.");
+    return { updated: 0 };
+  }
 
   // 2) availability snapshot (sum qty, earliest expiry)
   const ids = baseRows.map(r => r.item_id);
@@ -78,7 +81,10 @@ async function main() {
     const chunk = baseRows.slice(i, i + BATCH);
     const texts = chunk.map(r => buildDocText(r));
     const vectors = await embedBatch(texts);
-
+    if (!vectors || !Array.isArray(vectors) || vectors.length !== chunk.length) {
+      console.warn(`[food] Embedding failed or incomplete (batch ${i / BATCH + 1}). Stopping.`);
+      return { updated };
+    }
     const ops = chunk.map((r, idx) => {
       const av = avail.get(r.item_id) || { qty_total: 0, min_expiry: null };
       return {
@@ -99,13 +105,8 @@ async function main() {
         }
       };
     });
-
     await Rec.bulkWrite(ops, { ordered: false });
-    console.log(`⬆️ Upserted ${ops.length} embeddings…`);
   }
-
-  console.log("✅ Finished seeding embeddings with category/qty/expiry snapshots");
-  process.exit(0);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+//main().catch((e) => { console.error(e); process.exit(1); });

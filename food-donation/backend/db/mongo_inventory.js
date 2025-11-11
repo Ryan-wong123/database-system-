@@ -2,17 +2,6 @@ const {connectMongo} = require("./index");
 const InventoryCache = require("./mongo_schema/inventory_snapshot");
 const {getInventory} = require("./inventory")
 
-// async function example() {
-//   const db = await connectMongo();
-//   const col = db.collection("inv_view");
-//   const data = await col.findOne({});
-//   console.log(data);
-
-//   const { rows } = await pgPool.query("SELECT NOW()");
-//   console.log(rows);
-// }
-// example();
-
 
 function computeCacheMeta(ttlSec = 300) {
   const as_of = new Date();
@@ -83,7 +72,7 @@ async function getInventoryFromMongo(filter = {}) {
 
   if (filter.search) {
     query.$or = [
-      { item_name: { $regex: filter.search, $options: "i" } },
+      { item_name: { $regex: filter.search, $options: "i" } }, //insensitive
       { category: { $regex: filter.search, $options: "i" } },
     ];
   }

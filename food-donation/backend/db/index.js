@@ -28,10 +28,8 @@ async function connectMongo() {
     mongoClient = new MongoClient(process.env.MONGO_URI);
     await mongoClient.connect();
     mongoDb = mongoClient.db(process.env.MONGO_DBNAME);
-    console.log("✅ Connected to MongoDB");
     return mongoDb;
   } catch (err) {
-    console.error("❌ MongoDB connection error:", err);
     throw err;
   }
 }
@@ -43,10 +41,8 @@ async function connectMongoose() {
     await mongoose.connect(process.env.MONGO_URI, {
       dbName: process.env.MONGO_DBNAME || "inventory",
     });
-    console.log("✅ Connected to MongoDB (via Mongoose)");
     return mongoose.connection;
   } catch (err) {
-    console.error("❌ Mongoose connection error:", err);
     throw err;
   }
 }
