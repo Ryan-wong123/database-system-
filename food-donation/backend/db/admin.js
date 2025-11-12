@@ -45,16 +45,13 @@ async function updateBookingStatus({ booking_id, status }) {
     }
 
     const { rows } = await client.query(
-      `UPDATE Bookings
-          SET status = $2
-        WHERE booking_id = $1
-        RETURNING booking_id, household_id, location_id, status, created_at`,
+    "SELECT * FROM admin_update_booking_status_raw($1,$2)",
       [bid, target] // <-- correct param array
     );
 
     if (!rows.length) {
      // Ask DB what happened
-     const cur = await client.query('SELECT status FROM Bookings WHERE booking_id = $1', [bid]);
+     const cur = await client.query("SELECT admin_get_booking_status($1) AS status", [bid]);
       if (cur.rowCount && String(cur.rows[0].status).toLowerCase() === 'cancelled') {
        const err = new Error('Booking is already cancelled and cannot be changed');
        err.statusCode = 409;

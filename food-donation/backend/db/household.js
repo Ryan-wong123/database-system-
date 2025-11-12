@@ -23,12 +23,8 @@ async function leaveMyHousehold(userId) {
 }
 
 async function getMyHousehold(userId) {
-  const { rows } = await pgPool.query(`
-    SELECT hm.householdmembers_id, hm.household_id, h.household_pin, h.name AS household_name
-    FROM HouseholdMembers hm
-    JOIN Households h ON h.household_id = hm.household_id
-    WHERE hm.user_id = $1;
-    `, [userId]);
+  const { rows } = await pgPool.query(
+    "SELECT * FROM get_my_household($1)", [userId]);
   return rows[0] || null;
 }
 

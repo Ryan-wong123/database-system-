@@ -10,26 +10,24 @@ async function createBooking({ user_id, household_id, location_id, slot_start, s
 
   // ensure location is active (short query)
   {
-    const { rows } = await pgPool.query(
-      "SELECT is_active FROM Locations WHERE location_id = $1",
-      [location_id]
-    );
-    if (rows.length === 0 || !rows[0].is_active) {
-      throw new Error(`Invalid or inactive location_id ${location_id}`);
-    }
+  const { rows } = await pgPool.query(
+    "SELECT loc_is_active($1) AS is_active",
+    [location_id]
+  );
+  if (!rows.length || !rows[0].is_active) {
+    throw new Error(`Invalid or inactive location_id ${location_id}`);
   }
+}
 
   // resolve household in code if not provided
   if (!household_id) {
-    const { rows } = await pgPool.query(
-      `SELECT household_id FROM HouseholdMembers
-       WHERE user_id = $1
-       ORDER BY joined_at DESC LIMIT 1`,
-      [user_id]
-    );
-    household_id = rows[0]?.household_id ?? null;
-    if (!household_id) throw new Error(`User ${user_id} must join/create a household before booking`);
-  }
+  const { rows } = await pgPool.query(
+    "SELECT household_latest_for_user($1) AS household_id",
+    [user_id]
+  );
+  household_id = rows[0]?.household_id ?? null;
+  if (!household_id) throw new Error(`User ${user_id} must join/create a household before booking`);
+}
 
   // normalize items in code
   const reqItems = Array.isArray(items) ? items : [];
@@ -139,10 +137,7 @@ async function getBookingHistoryByHousehold(household_id) {
 async function requireHousehold(req, res, next) {
   try {
     const { rows } = await pgPool.query(
-      `SELECT 1
-       FROM HouseholdMembers
-       WHERE user_id = $1
-       LIMIT 1`,
+        "SELECT household_has_membership($1) AS ok",
       [req.user.user_id]
     );
     if (rows.length === 0) {
@@ -169,11 +164,6 @@ function cosineSim(a, b) {
   return s;
 }
 
-/**
- * Recommend items for a household at a given location, ranked by cosine sim to household profile.
- * - Uses Postgres inventory for what's available (qty, expiry, location)  → food_item_id set
- * - Uses Mongo item embeddings to rank → name + metadata for dropdown
- */
 async function recommendItemsForHousehold({ householdId, locationId, limit = 12, minQty = 1 }) {
   // 1) get household embedding (1536-dim)
   const hh = await HouseholdProfiles.findOne(
@@ -189,15 +179,7 @@ async function recommendItemsForHousehold({ householdId, locationId, limit = 12,
 
   // 2) from Postgres, fetch available item IDs at the location (qty > 0, not expired)
   const { rows } = await pgPool.query(
-    `
-    SELECT DISTINCT fi.food_item_id, fi.name
-    FROM public.inventory inv
-    JOIN public.fooditems fi ON fi.food_item_id = inv.food_item_id
-    WHERE inv.location_id = $1
-      AND inv.qty > $2
-      AND inv.expiry_date >= CURRENT_DATE
-    ORDER BY fi.food_item_id
-    `,
+     "SELECT * FROM inventory_available_items($1, $2)",
     [locationId, minQty]
   );
   if (rows.length === 0) return [];

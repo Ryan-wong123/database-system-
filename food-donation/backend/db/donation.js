@@ -22,11 +22,11 @@ async function addDonation(payload) {
       throw new Error("Missing donor_id, location_id, or items");
     }
 
-    // normalize each item
-    const normalized = payload.items.map((it) => {
+    // normalize each item (no de-dup, keep order)
+    const normalized = payload.items.map((it, i) => {
       const qty = Number(it.qty);
       if (!it.name || !it.category_id || !it.unit_id || !Number.isFinite(qty) || qty < 1) {
-        throw new Error(`Invalid item: ${JSON.stringify(it)}`);
+        throw new Error(`Invalid item at index ${i}: ${JSON.stringify(it)}`);
       }
 
       // normalize expiry to YYYY-MM-DD or null
@@ -40,69 +40,42 @@ async function addDonation(payload) {
       }
 
       return {
-        name: it.name.trim(),
+        name: String(it.name).trim(),
         category_id: Number(it.category_id),
         unit_id: Number(it.unit_id),
-        ingredients: (it.ingredients && String(it.ingredients).trim()) || it.name.trim(),
+        ingredients: (it.ingredients && String(it.ingredients).trim()) || String(it.name).trim(),
         diet_ids: Array.isArray(it.diet_ids) ? it.diet_ids.map(Number).filter(Boolean) : [],
         qty,
         expiry
       };
     });
 
-    // ---- 1) DE-DUPLICATE items BEFORE inserting ----
-    // Key: same name+category+unit+ingredients+expiry => merge qty and union diet_ids
-    const map = new Map();
-    for (const it of normalized) {
-      const key = [
-        it.name,
-        it.category_id,
-        it.unit_id,
-        it.ingredients,
-        it.expiry || ""
-      ].join("|");
-
-      if (!map.has(key)) {
-        map.set(key, { ...it, diet_set: new Set(it.diet_ids) });
-      } else {
-        const cur = map.get(key);
-        cur.qty += it.qty;
-        for (const d of it.diet_ids) cur.diet_set.add(d);
-      }
-    }
-    const deduped = Array.from(map.values()).map((x) => ({
-      name: x.name,
-      category_id: x.category_id,
-      unit_id: x.unit_id,
-      ingredients: x.ingredients,
-      diet_ids: Array.from(x.diet_set.values()),
-      qty: x.qty,
-      expiry: x.expiry
-    }));
-
     await client.query("BEGIN");
 
-    // ---- 2) Create donation ----
+    // ---- 1) Create donation ----
     const dRes = await client.query(
       "SELECT * FROM donation_create($1,$2)",
       [payload.donor_id, payload.location_id]
     );
     const donation_id = dRes.rows[0].donation_id;
 
-    // ---- 3) For each deduped item: find-or-create food, link diets, add donation item ----
-    for (const it of deduped) {
+    // ---- 2) Insert EVERY line as its own DonationItems row ----
+    for (const it of normalized) {
+      // still reuse the same FoodItems master (find-or-create by name/category/unit/ingredients)
       const fRes = await client.query(
         "SELECT * FROM fooditem_find_or_create($1,$2,$3,$4)",
         [it.name, it.category_id, it.unit_id, it.ingredients]
       );
       const food_item_id = fRes.rows[0].food_item_id;
 
+      // link diets (if any)
       if (it.diet_ids.length) {
         for (const did of it.diet_ids) {
           await client.query("SELECT fooditemdiet_link($1,$2)", [food_item_id, did]);
         }
       }
 
+      // one DonationItems row per line, even if identical to another
       await client.query(
         "SELECT donationitem_create($1,$2,$3,$4::date)",
         [donation_id, food_item_id, it.qty, it.expiry]
@@ -111,7 +84,7 @@ async function addDonation(payload) {
 
     await client.query("COMMIT");
 
-    // ---- 4) Read back detail (1 row JSON) ----
+    // ---- 3) Read back detail (1 row JSON) ----
     const detail = await client.query(
       "SELECT donation_detail_json($1) AS donation",
       [donation_id]
@@ -122,7 +95,7 @@ async function addDonation(payload) {
       donation: detail.rows[0]?.donation ?? null
     };
   } catch (err) {
-    await client.query("ROLLBACK");
+    try { await client.query("ROLLBACK"); } catch {}
     throw err;
   } finally {
     client.release();

@@ -13,26 +13,15 @@ const parseArrayMaybe = (x) => {
 };
 const sumBy = (xs, pick) => Array.isArray(xs) ? xs.reduce((t, x) => t + num(pick(x)), 0) : 0;
 
-function buildInClause(baseParams, ids) {
-  const start = baseParams.length + 1;
-  const placeholders = ids.map((_, i) => `$${start + i}`).join(",");
-  return { text: `(${placeholders})`, params: baseParams.concat(ids) };
-}
-
 async function fetchItemTotalsForBookings(bookingIds) {
   if (!bookingIds.length) return new Map();
-  const inq = buildInClause([], bookingIds);
-  const sql = `
-    SELECT
-      bt.booking_id,
-      bt.food_item_id,
-      SUM(bt.qty_allocated)             AS qty_allocated_sum,
-      SUM(COALESCE(bt.qty_collected,0)) AS qty_collected_sum
-    FROM BookingTransactions bt
-    WHERE bt.booking_id IN ${inq.text}
-    GROUP BY bt.booking_id, bt.food_item_id
-  `;
-  const { rows } = await pgPool.query(sql, inq.params);
+
+  // Call the Postgres function instead of building an IN (...) list
+  const { rows } = await pgPool.query(
+    "SELECT * FROM booking_item_totals_for_bookings($1)",
+    [bookingIds] // node-postgres sends this as int[]
+  );
+
   const map = new Map(); // key `${booking_id}:${food_item_id}`
   for (const r of rows) {
     map.set(`${r.booking_id}:${r.food_item_id}`, {

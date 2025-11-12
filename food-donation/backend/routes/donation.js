@@ -65,7 +65,6 @@ async function invalidateListsForDonor(donor_id) {
   } catch {}
 }
 
-// If we only know donation_id, fetch donor_id to invalidate caches
 async function invalidateByDonationId(donation_id) {
   try {
     const q = `SELECT donor_id FROM donations WHERE donation_id = $1`;
@@ -76,9 +75,6 @@ async function invalidateByDonationId(donation_id) {
   } catch {}
 }
 
-// ====================
-// POST /donation/create
-// ====================
 router.post("/create", async (req, res) => {
   try {
     // ---- JWT auth ----
@@ -163,9 +159,6 @@ router.post("/create", async (req, res) => {
   }
 });
 
-// ====================
-// GET /donation/list  (CACHED)
-// ====================
 router.get("/list", async (req, res) => {
   try {
     const refresh = String(req.query.refresh || "") === "1";
@@ -190,9 +183,6 @@ router.get("/list", async (req, res) => {
   }
 });
 
-// ====================
-// POST /donation/approve/:id   (invalidates caches)
-// ====================
 router.post("/approve/:id", async (req, res) => {
   try {
     const { approve_status } = req.body;
@@ -229,9 +219,6 @@ router.post("/approve/:id", async (req, res) => {
   }
 });
 
-// ====================
-// POST /donation/cancel/:id   (invalidates caches)
-// ====================
 router.post("/cancel/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -239,13 +226,8 @@ router.post("/cancel/:id", async (req, res) => {
       return res.status(400).json({ ok: false, error: `Invalid id: ${id}` });
     }
 
-    const sql = `
-      UPDATE donations
-      SET approve_status = 'cancelled'
-      WHERE donation_id = $1 AND approve_status = 'pending'
-      RETURNING donation_id, approve_status;
-    `;
-    const { rows, rowCount } = await pgPool.query(sql, [id]);
+    // Use the DB function wrapper instead of inline SQL
+    const { rowCount, rows } = await cancelDonation(id);
 
     if (rowCount === 0) {
       return res.status(409).json({
@@ -259,7 +241,7 @@ router.post("/cancel/:id", async (req, res) => {
 
     return res.json({
       ok: true,
-      donation: rows[0],
+      donation: rows[0], // whatever donation_cancel($1) returns
       message: "Donation cancelled successfully."
     });
   } catch (err) {
@@ -267,6 +249,7 @@ router.post("/cancel/:id", async (req, res) => {
     res.status(500).json({ ok: false, error: err.message });
   }
 });
+
 
 // ====================
 // GET /donation/list/:id  (by account)  (CACHED)
