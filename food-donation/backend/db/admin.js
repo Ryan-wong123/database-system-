@@ -2,41 +2,114 @@
 const { pgPool } = require("./index");
 
 // Allowed statuses – ensure these match your DB enum/check
-const ALLOWED_BOOKING_STATUSES = new Set(['pending','confirmed','cancelled','completed']);
+const ALLOWED_BOOKING_STATUSES = new Set([
+  "pending",
+  "confirmed",
+  "cancelled",
+  "completed",
+]);
 
 async function listBookingsAdmin() {
   const { rows } = await pgPool.query("SELECT * FROM admin_list_bookings()");
   return rows;
 }
+
 async function listInventoryAdmin() {
   const { rows } = await pgPool.query("SELECT * FROM admin_list_inventory()");
   return rows;
 }
+
 async function updateBookingStatus({ booking_id, status }) {
-  if (!ALLOWED_BOOKING_STATUSES.has(status)) {
-    const allowed = Array.from(ALLOWED_BOOKING_STATUSES).join(', ');
-    throw new Error(`Invalid status "${status}". Allowed: ${allowed}`);
+  const target = String(status).trim().toLowerCase();
+  if (!ALLOWED_BOOKING_STATUSES.has(target)) {
+    const allowed = Array.from(ALLOWED_BOOKING_STATUSES).join(", ");
+    const err = new Error(`Invalid status "${status}". Allowed: ${allowed}`);
+    err.statusCode = 400;
+    throw err;
   }
-  const { rows } = await pgPool.query(
-    "SELECT * FROM admin_update_booking_status($1,$2)",
-    [Number(booking_id), status]
-  );
-  if (rows.length === 0) {
-    const e = new Error('Booking not found');
-    e.statusCode = 404;
-    throw e;
+
+  const bid = Number(booking_id);
+  if (!Number.isInteger(bid)) {
+    const err = new Error("Invalid booking_id");
+    err.statusCode = 400;
+    throw err;
   }
-  return rows[0];
+
+  const client = await pgPool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (target === "cancelled") {
+      // Put back (allocated - collected) per lot
+      await client.query("SELECT admin_restock_booking($1)", [bid]);
+    }
+
+    const { rows } = await client.query(
+      `UPDATE Bookings
+          SET status = $2
+        WHERE booking_id = $1
+        RETURNING booking_id, household_id, location_id, status, created_at`,
+      [bid, target] // <-- correct param array
+    );
+
+    if (!rows.length) {
+     // Ask DB what happened
+     const cur = await client.query('SELECT status FROM Bookings WHERE booking_id = $1', [bid]);
+      if (cur.rowCount && String(cur.rows[0].status).toLowerCase() === 'cancelled') {
+       const err = new Error('Booking is already cancelled and cannot be changed');
+       err.statusCode = 409;
+       throw err;
+  }
+  const err = new Error('Booking not found');
+  err.statusCode = 404;
+  throw err;
 }
-async function updateFoodItemTx({ item_id, name, category_id, qty, expiry_date, location_id, lot_id = null }) {
+
+    await client.query("COMMIT");
+    return rows[0];
+  } catch (err) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateFoodItemTx({
+  item_id,
+  name,
+  category_id,
+  qty,
+  expiry_date,
+  location_id,
+  lot_id = null,
+}) {
   const { rows } = await pgPool.query(
     "SELECT * FROM admin_update_food_item_tx($1,$2,$3,$4,$5,$6,$7)",
     [item_id, name, category_id, qty, expiry_date, location_id, lot_id]
   );
   return rows; // array of updated lot rows
 }
+
 async function getAllFoodCategories() {
-  const { rows } = await pgPool.query("SELECT * FROM admin_get_all_food_categories()");
+  const { rows } = await pgPool.query(
+    "SELECT * FROM admin_get_all_food_categories()"
+  );
   return rows;
 }
-module.exports = { listBookingsAdmin,listInventoryAdmin,updateBookingStatus,updateBookingStatus,updateFoodItemTx,getAllFoodCategories };
+
+// Optional direct helper if you want to call it elsewhere
+async function adminRestockBooking(bookingId) {
+  const bid = Number(bookingId);
+  if (!Number.isInteger(bid)) throw new Error("Invalid bookingId");
+  await pgPool.query("SELECT admin_restock_booking($1)", [bid]);
+}
+
+module.exports = {
+  listBookingsAdmin,
+  listInventoryAdmin,
+  updateBookingStatus,
+  updateFoodItemTx,
+  getAllFoodCategories,
+  adminRestockBooking,
+};

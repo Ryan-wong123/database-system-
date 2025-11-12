@@ -1,8 +1,81 @@
 // db/booking_history_upsert.js
 const BookingHistory = require("./mongo_schema/booking_history");
+const { pgPool } = require("./index");
 
-function normalize(user_id, row) {
-  const items = Array.isArray(row.items) ? row.items : [];
+const num = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
+const parseArrayMaybe = (x) => {
+  if (!x) return null;
+  if (Array.isArray(x)) return x;
+  if (typeof x === "string") {
+    try { const v = JSON.parse(x); return Array.isArray(v) ? v : null; } catch { return null; }
+  }
+  return null;
+};
+const sumBy = (xs, pick) => Array.isArray(xs) ? xs.reduce((t, x) => t + num(pick(x)), 0) : 0;
+
+function buildInClause(baseParams, ids) {
+  const start = baseParams.length + 1;
+  const placeholders = ids.map((_, i) => `$${start + i}`).join(",");
+  return { text: `(${placeholders})`, params: baseParams.concat(ids) };
+}
+
+async function fetchItemTotalsForBookings(bookingIds) {
+  if (!bookingIds.length) return new Map();
+  const inq = buildInClause([], bookingIds);
+  const sql = `
+    SELECT
+      bt.booking_id,
+      bt.food_item_id,
+      SUM(bt.qty_allocated)             AS qty_allocated_sum,
+      SUM(COALESCE(bt.qty_collected,0)) AS qty_collected_sum
+    FROM BookingTransactions bt
+    WHERE bt.booking_id IN ${inq.text}
+    GROUP BY bt.booking_id, bt.food_item_id
+  `;
+  const { rows } = await pgPool.query(sql, inq.params);
+  const map = new Map(); // key `${booking_id}:${food_item_id}`
+  for (const r of rows) {
+    map.set(`${r.booking_id}:${r.food_item_id}`, {
+      alloc: num(r.qty_allocated_sum),
+      coll:  num(r.qty_collected_sum),
+    });
+  }
+  return map;
+}
+
+function normalizeOneDoc(user_id, row, totalsByBookingItem) {
+  const status = String(row.status || "pending").toLowerCase();
+
+  const itemsParsed =
+    parseArrayMaybe(row.items) ||
+    parseArrayMaybe(row.items_json) ||
+    (Array.isArray(row.items) ? row.items : []);
+
+  const items = itemsParsed.map((it) => {
+    const item_id = it.item_id ?? it.id ?? it.food_item_id ?? it.alloc_food_item_id ?? null;
+
+    // exact totals from PG
+    const t = item_id != null
+      ? (totalsByBookingItem.get(`${row.booking_id}:${item_id}`) || { alloc: 0, coll: 0 })
+      : { alloc: 0, coll: 0 };
+
+    // last-resort derive from lots if present
+    if (!t.alloc && !t.coll) {
+      const lotsRaw = it?.lots ?? it?.lots_json ?? it?.alloc_lots_json ?? null;
+      const lots = parseArrayMaybe(lotsRaw) || (Array.isArray(lotsRaw) ? lotsRaw : []);
+      t.alloc = sumBy(lots, l => l.qty_allocated ?? l.allocated ?? l.qty ?? l.total_qty ?? 0);
+      t.coll  = sumBy(lots, l => l.qty_collected ?? l.collected ?? 0);
+    }
+
+    return {
+      item_id,
+      name: it.name ?? it.food_name ?? it.alloc_food_name ?? (item_id ? `Item #${item_id}` : null),
+      unit: it.unit ?? it.uom ?? null,
+      qty_allocated: t.alloc,
+      qty_collected: t.coll,
+    };
+  });
+
   return {
     user_id,
     booking_id: row.booking_id,
@@ -11,7 +84,7 @@ function normalize(user_id, row) {
     location_name: row.location_name,
     slot_start: row.slot_start ? new Date(row.slot_start) : null,
     slot_end: row.slot_end ? new Date(row.slot_end) : null,
-    status: row.status || "pending",
+    status,
     created_at: row.created_at ? new Date(row.created_at) : new Date(),
     items_count: typeof row.items_count === "number" ? row.items_count : items.length,
     items,
@@ -23,12 +96,16 @@ function normalize(user_id, row) {
 
 async function upsertUserBookingHistory(user_id, rows = []) {
   if (!rows.length) return;
-  const ops = rows.map(r => ({
+
+  const bookingIds = rows.map(r => r.booking_id).filter((v) => Number.isInteger(Number(v)));
+  const totalsByBookingItem = await fetchItemTotalsForBookings(bookingIds);
+
+  const ops = rows.map((r) => ({
     updateOne: {
       filter: { user_id, booking_id: r.booking_id },
-      update: { $set: normalize(user_id, r) },
-      upsert: true
-    }
+      update: { $set: normalizeOneDoc(user_id, r, totalsByBookingItem) },
+      upsert: true,
+    },
   }));
   await BookingHistory.bulkWrite(ops, { ordered: false });
 }

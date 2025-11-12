@@ -7,7 +7,8 @@ const {
   listBookingsAdmin,
   updateBookingStatus,
   updateFoodItemTx,
-  getAllFoodCategories
+  getAllFoodCategories,
+  adminRestockBooking
 } = require("../db/admin");
 
 // NEW: Redis helpers
