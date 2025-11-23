@@ -5,7 +5,8 @@ const mongoose = require("mongoose");
 const redis = require("redis");
 const cors = require("cors");
 const { decodeToken } = require("./middleware/auth");
-
+const { rateLimit } = require('./middleware/rateLimit');
+const { idempotency } = require('./middleware/idempotency');
 // routes
 const authRoutes = require("./routes/auth");
 const foodItemRoutes = require("./routes/fooditem");
@@ -18,22 +19,27 @@ const dietRoute = require("./routes/diet");
 
 const bookings = require('./routes/bookings');
 const bookinghistory = require('./routes/bookinghistory');
+const recommendationRoutes = require("./routes/recommendations");
+const profileRoutes = require("./routes/profile");
+
+const {startInventoryCron, startFoodEmbeddingCron, startHouseholdEmbeddingCron} = require("./jobs/scheduler");
+
 // app setup
 const app = express();
 const PORT = process.env.PORT || 8000;
-
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
 // ✅ Decode JWT BEFORE protected routes
 app.use(decodeToken);
-
+app.use(rateLimit({ windowSec: 60, max: 300 }));
 // ✅ Log every request (helpful for debugging)
 app.use((req, _res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);
   next();
 });
-
+app.use(idempotency({ ttlSec: 24 * 3600 }));
 // ----- PUBLIC ROUTES -----
 app.get("/", (_req, res) => res.send("OK"));
 app.use("/", miscRoutes);
@@ -49,6 +55,13 @@ app.use("/donation", donationRoutes);
 app.use("/admin", adminRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/households", householdRoutes);
+app.use("/recommendations", recommendationRoutes);
+app.use("/profile", profileRoutes);
+
+// --- Cron Jobs ---
+startInventoryCron();
+startFoodEmbeddingCron();
+startHouseholdEmbeddingCron();
 
 // ----- MongoDB -----
 if (process.env.MONGO_URI) {

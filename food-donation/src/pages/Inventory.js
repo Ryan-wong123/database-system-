@@ -1,7 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { InventoryAPI } from '../services/api';
+import { InventoryAPI, RecommendationsAPI } from '../services/api'; // ← NEW
 import ItemCard from '../components/ItemCard';
+
+// ← NEW: small helper to normalize API shapes
+function toArray(maybe) {
+  if (Array.isArray(maybe)) return maybe;
+  if (!maybe || typeof maybe !== 'object') return [];
+  if (Array.isArray(maybe.results)) return maybe.results;     // { ok, results: [...] }
+  if (Array.isArray(maybe.data)) return maybe.data;           // axios-like
+  if (Array.isArray(maybe.rows)) return maybe.rows;           // PG style
+  if (maybe.data && Array.isArray(maybe.data.results)) return maybe.data.results;
+  return [];
+}
 
 export default function Inventory() {
   const [search, setSearch] = useState('');
@@ -41,6 +52,55 @@ export default function Inventory() {
       a.location_name.localeCompare(b.location_name)
     );
   }, [filteredItems]);
+
+  // =========================
+  // NEW: Similar items (vector)
+  // =========================
+  const [similar, setSimilar] = useState({ loading: false, data: [], error: null });
+
+  async function runSimilarSearch(q) {
+    const query = q.trim();
+    if (!query) {
+      setSimilar({ loading: false, data: [], error: null });
+      return;
+    }
+    try {
+      setSimilar((prev) => ({ ...prev, loading: true, error: null }));
+      const resp = await RecommendationsAPI.semanticSearch({ q: query });
+      const results = toArray(resp);
+
+      // Map to ItemCard props (using denormalized fields if present)
+      const arr = results.map((r) => ({
+        id: r.item_id ?? r.id,
+        name: r.name ?? r.item_name ?? '(Unnamed item)',
+        category: r.category ?? '',
+        qty: Number(r.qty ?? r.qty_total ?? 0),
+        expiry: r.expiry ?? r.min_expiry ?? null,
+        location:
+          r.primary_location_name ||
+          r.locations_display ||
+          (Array.isArray(r.locations) && r.locations[0]?.name) ||
+          '',
+      }));
+
+      setSimilar({ loading: false, data: arr, error: null });
+    } catch (err) {
+      console.error('❌ Similar (vector) search error:', err);
+      setSimilar({ loading: false, data: [], error: 'Failed to load similar items' });
+    }
+  }
+
+  // Debounced effect: whenever search changes, refresh the similar strip
+  useEffect(() => {
+    const t = setTimeout(() => {
+      runSimilarSearch(search);
+    }, 300); // debounce ~300ms
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const showSimilarStrip =
+    !!search.trim() && !similar.loading && !similar.error && similar.data.length > 0;
 
   return (
     <div className="d-grid gap-3">
@@ -88,6 +148,42 @@ export default function Inventory() {
           </div>
         </div>
       ))}
+
+      {/* ============================== */}
+      {/* NEW: Similar items (vector) UI */}
+      {/* ============================== */}
+      <hr className="my-3" />
+      <div className="d-flex align-items-center justify-content-between">
+        <h3 className="h6 mb-0">Similar items</h3>
+        {similar.loading && <span className="text-muted small">Searching…</span>}
+      </div>
+      {similar.error && <div className="text-danger small mt-1">{similar.error}</div>}
+      <div
+        className="d-flex gap-3 overflow-auto pb-2 mt-2"
+        style={{ scrollSnapType: 'x mandatory', whiteSpace: 'nowrap' }}
+      >
+        {showSimilarStrip ? (
+          similar.data.map((it) => (
+            <div
+              key={it.id}
+              className="card shadow-sm p-2"
+              style={{ minWidth: 260, scrollSnapAlign: 'start' }}
+            >
+              <ItemCard
+                name={it.name}
+                category={it.category}
+                qty={it.qty}
+                expiry={it.expiry}
+              />
+              {it.location && (
+                <div className="small text-muted ms-1 mt-1">📍 {it.location}</div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="text-muted small">Type in the search box to see similar items.</div>
+        )}
+      </div>
     </div>
   );
 }

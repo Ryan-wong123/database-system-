@@ -43,9 +43,6 @@ export default function Navbar() {
               <NavLink className="nav-link" to="/inventory">Inventory</NavLink>
             </li>
             <li className="nav-item">
-              <NavLink className="nav-link" to="/history">Donation History</NavLink>
-            </li>
-            <li className="nav-item">
               <NavLink className="nav-link" to="/admin">Admin</NavLink>
             </li>
           </>

@@ -1,122 +1,112 @@
 // db/booking.js
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 
 // Allowed statuses – ensure these match your DB enum/check
-const ALLOWED_BOOKING_STATUSES = new Set(['pending','confirmed','cancelled','completed']);
+const ALLOWED_BOOKING_STATUSES = new Set([
+  "pending",
+  "confirmed",
+  "cancelled",
+  "completed",
+]);
 
 async function listBookingsAdmin() {
-  const sql = `
-    SELECT 
-      b.booking_id,
-      b.household_id,
-      b.location_id,
-      l.name       AS location_name,
-      b.slot_start_time,
-      b.slot_end_time,
-      b.status,
-      b.created_at
-    FROM Bookings b
-    JOIN Locations l ON l.location_id = b.location_id
-    ORDER BY b.created_at DESC
-  `;
-  const { rows } = await pgPool.query(sql);
+  const { rows } = await pgPool.query("SELECT * FROM admin_list_bookings()");
   return rows;
 }
+
 async function listInventoryAdmin() {
   const { rows } = await pgPool.query("SELECT * FROM admin_list_inventory()");
   return rows;
 }
+
 async function updateBookingStatus({ booking_id, status }) {
-  if (!ALLOWED_BOOKING_STATUSES.has(status)) {
-    const allowed = Array.from(ALLOWED_BOOKING_STATUSES).join(', ');
-    throw new Error(`Invalid status "${status}". Allowed: ${allowed}`);
+  const target = String(status).trim().toLowerCase();
+  if (!ALLOWED_BOOKING_STATUSES.has(target)) {
+    const allowed = Array.from(ALLOWED_BOOKING_STATUSES).join(", ");
+    const err = new Error(`Invalid status "${status}". Allowed: ${allowed}`);
+    err.statusCode = 400;
+    throw err;
   }
 
-  const sql = `
-    UPDATE Bookings
-       SET status = $2
-     WHERE booking_id = $1
-     RETURNING booking_id, household_id, location_id, status, created_at
-  `;
-  const { rows } = await pgPool.query(sql, [Number(booking_id), status]);
-  if (rows.length === 0) {
-    const e = new Error('Booking not found');
-    e.statusCode = 404;
-    throw e;
+  const bid = Number(booking_id);
+  if (!Number.isInteger(bid)) {
+    const err = new Error("Invalid booking_id");
+    err.statusCode = 400;
+    throw err;
   }
-  return rows[0];
-}
-async function updateFoodItemTx({ item_id, name, category_id, qty, expiry_date, location_id, lot_id = null }) {
+
   const client = await pgPool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
-    // 1) FoodItems: name + category
-    await client.query(
-      `
-      UPDATE FoodItems
-      SET name = $1,
-          category_id = $2
-      WHERE food_item_id = $3
-      `,
-      [name, category_id, item_id]
+    if (target === "cancelled") {
+      // Put back (allocated - collected) per lot
+      await client.query("SELECT admin_restock_booking($1)", [bid]);
+    }
+
+    const { rows } = await client.query(
+    "SELECT * FROM admin_update_booking_status_raw($1,$2)",
+      [bid, target] // <-- correct param array
     );
 
-    // 2) Inventory: qty + expiry + location
-    //    If lot_id is provided, constrain by lot_id; else update all lots of this food item
-    const params = [qty, expiry_date, location_id, item_id];
-    const sqlInv = `
-      UPDATE Inventory
-      SET qty = $1,
-          expiry_date = $2,
-          location_id = $3
-      WHERE food_item_id = $4
-      ${lot_id ? 'AND lot_id = $5' : ''}
-    `;
-    if (lot_id) params.push(lot_id);
-    await client.query(sqlInv, params);
+    if (!rows.length) {
+     // Ask DB what happened
+     const cur = await client.query("SELECT admin_get_booking_status($1) AS status", [bid]);
+      if (cur.rowCount && String(cur.rows[0].status).toLowerCase() === 'cancelled') {
+       const err = new Error('Booking is already cancelled and cannot be changed');
+       err.statusCode = 409;
+       throw err;
+  }
+  const err = new Error('Booking not found');
+  err.statusCode = 404;
+  throw err;
+}
 
-    // Return the updated rows (matches your SELECT shape)
-    const selParams = [item_id];
-    const sel = `
-      SELECT 
-          fi.food_item_id,
-          fi.name        AS food_name,
-          fc.name        AS category,
-          fu.unit        AS unit,
-          i.lot_id,
-          i.qty,
-          i.expiry_date,
-          l.name         AS location
-      FROM Inventory i
-      JOIN FoodItems    fi ON i.food_item_id = fi.food_item_id
-      JOIN FoodCategory fc ON fi.category_id = fc.category_id
-      JOIN FoodUnit     fu ON fi.unit_id = fu.unit_id
-      JOIN Locations    l  ON i.location_id = l.location_id
-      WHERE fi.food_item_id = $1
-      ${lot_id ? 'AND i.lot_id = $2' : ''}
-      ORDER BY fi.name
-    `;
-    if (lot_id) selParams.push(lot_id);
-
-    const { rows } = await client.query(sel, selParams);
-
-    await client.query('COMMIT');
-    return rows; // array of updated lot rows
+    await client.query("COMMIT");
+    return rows[0];
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('updateFoodItemTx failed:', err);
+    try { await client.query("ROLLBACK"); } catch {}
     throw err;
   } finally {
     client.release();
   }
 }
 
+async function updateFoodItemTx({
+  item_id,
+  name,
+  category_id,
+  qty,
+  expiry_date,
+  location_id,
+  lot_id = null,
+}) {
+  const { rows } = await pgPool.query(
+    "SELECT * FROM admin_update_food_item_tx($1,$2,$3,$4,$5,$6,$7)",
+    [item_id, name, category_id, qty, expiry_date, location_id, lot_id]
+  );
+  return rows; // array of updated lot rows
+}
+
 async function getAllFoodCategories() {
   const { rows } = await pgPool.query(
-    `SELECT category_id, name FROM FoodCategory ORDER BY name`
+    "SELECT * FROM admin_get_all_food_categories()"
   );
   return rows;
 }
 
-module.exports = { listBookingsAdmin,listInventoryAdmin,updateBookingStatus,updateBookingStatus,updateFoodItemTx,getAllFoodCategories };
+// Optional direct helper if you want to call it elsewhere
+async function adminRestockBooking(bookingId) {
+  const bid = Number(bookingId);
+  if (!Number.isInteger(bid)) throw new Error("Invalid bookingId");
+  await pgPool.query("SELECT admin_restock_booking($1)", [bid]);
+}
+
+module.exports = {
+  listBookingsAdmin,
+  listInventoryAdmin,
+  updateBookingStatus,
+  updateFoodItemTx,
+  getAllFoodCategories,
+  adminRestockBooking,
+};

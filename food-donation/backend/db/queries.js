@@ -1,5 +1,5 @@
 // db/queries.js
-const pgPool = require("./index");
+const { pgPool } = require("./index");
 
 /** Inventory (front & admin) **/
 async function listInventory({ inStockOnly, q, location_id }) {
@@ -24,19 +24,14 @@ async function listInventory({ inStockOnly, q, location_id }) {
   return rows;
 }
 
-/** Locations **/
 async function listLocations() {
-  const sql = `SELECT location_id AS id, name FROM Locations ORDER BY name ASC`;
-  const { rows } = await pgPool.query(sql);
-  return rows;
+  const { rows } = await pgPool.query("SELECT * FROM locations_list()");
+  return rows; 
 }
 
-/** Units **/
 async function listUnits() {
-  const { rows } = await pgPool.query(
-    'SELECT unit_id, unit FROM foodunit ORDER BY unit ASC'
-  );
-  return rows;
+  const { rows } = await pgPool.query("SELECT * FROM foodunit_list()");
+  return rows; 
 }
 
 module.exports = { listInventory, listLocations, listUnits};

@@ -1,13 +1,33 @@
 const express = require("express");
 const router = express.Router();
-const pgPool = require("../db/index");
+const { pgPool } = require("../db/index");
 const jwt = require("jsonwebtoken");
-const { getDonations, getDonationsByAccount, addDonation, approveDonation, cancelDonation, getDonationHistory } = require("../db/donation");
-const ALLOWED_DONATION_STATUSES = new Set(['pending', 'confirmed', 'cancelled', 'completed']);
+const {
+  getDonations,
+  getDonationsByAccount,
+  addDonation,
+  approveDonation,
+  cancelDonation,
+  getDonationHistory
+} = require("../db/donation");
+const { upsertDonationHistory, listDonationHistoryFromMongo } = require("../db/donation_history_upsert");
 
+const ALLOWED_DONATION_STATUSES = new Set(["pending", "confirmed", "cancelled", "completed"]);
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-// ---------- helpers ----------
+// ───────── Redis helpers & keys ─────────
+const { rGet, rSet, rDel } = require("../redis");
+
+// Lists
+const TTL_LIST_SEC = 60; // short cache to keep admin/user views fresh
+const KEY_DONATION_LIST_ALL = "donation:list:all";
+const keyDonationListByAccount = (id) => `donation:list:account:${id}`;
+
+// History
+const TTL_DONATION_HISTORY_SEC = 180; // 3 minutes
+const keyDonationHistory = (uid) => `donation:history:user:${uid}`;
+
+// ───────── helpers ─────────
 const isInt = (n) => Number.isInteger(Number(n));
 
 // Accept ISO (YYYY-MM-DD) OR UI (DD/MM/YYYY) → return ISO
@@ -27,19 +47,41 @@ function isFutureOrTodayISO(isoDate) {
   return d >= today;
 }
 
-// ====================
-// POST /donation/create
-// ====================
+// Invalidation helpers
+async function invalidateHistoryForDonor(donor_id) {
+  try {
+    if (Number.isInteger(Number(donor_id))) {
+      await rDel(keyDonationHistory(Number(donor_id)));
+    }
+  } catch {}
+}
+
+async function invalidateListsForDonor(donor_id) {
+  try {
+    await rDel(KEY_DONATION_LIST_ALL);
+    if (Number.isInteger(Number(donor_id))) {
+      await rDel(keyDonationListByAccount(Number(donor_id)));
+    }
+  } catch {}
+}
+
+async function invalidateByDonationId(donation_id) {
+  try {
+    const q = `SELECT donor_id FROM donations WHERE donation_id = $1`;
+    const { rows } = await pgPool.query(q, [donation_id]);
+    const donor_id = rows?.[0]?.donor_id;
+    await invalidateHistoryForDonor(donor_id);
+    await invalidateListsForDonor(donor_id);
+  } catch {}
+}
 
 router.post("/create", async (req, res) => {
   try {
-    // ---- 1) Inline JWT authentication ----
+    // ---- JWT auth ----
     const authHeader = req.headers.authorization || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    if (!token) {
-      return res.status(401).json({ ok: false, error: "Missing token" });
-    }
+    if (!token) return res.status(401).json({ ok: false, error: "Missing token" });
 
     let decoded;
     try {
@@ -51,13 +93,12 @@ router.post("/create", async (req, res) => {
       return res.status(401).json({ ok: false, error: "Invalid token" });
     }
 
-    // Get user ID from decoded token
     const donorId = decoded?.id ?? decoded?.user_id;
     if (!isInt(donorId)) {
       return res.status(401).json({ ok: false, error: "Token missing valid user id" });
     }
 
-    // ---- 2) Validate payload ----
+    // ---- Validate payload ----
     const { location_id, items } = req.body || {};
     if (!isInt(location_id)) {
       return res.status(400).json({ ok: false, error: "location_id is required and must be an integer" });
@@ -66,7 +107,6 @@ router.post("/create", async (req, res) => {
       return res.status(400).json({ ok: false, error: "items must be a non-empty array" });
     }
 
-    // Normalize + validate each item
     let prepared;
     try {
       prepared = items.map((it, i) => {
@@ -76,18 +116,15 @@ router.post("/create", async (req, res) => {
         if (!isInt(it.qty) || Number(it.qty) < 1) throw new Error(`items[${i}].qty must be >= 1`);
 
         const hasDetails = it.name && isInt(it.category_id) && isInt(it.unit_id) && it.ingredients;
-        if (!hasDetails) {
-          throw new Error(
-            `items[${i}] must have name, category_id, unit_id, and ingredients`
-          );
-        }
+        if (!hasDetails) throw new Error(`items[${i}] must have name, category_id, unit_id, and ingredients`);
+
         return { ...it, qty: Number(it.qty), expiry_date: iso };
       });
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });
     }
 
-    // ---- 3) Call addDonation from db/donation.js (like foodcategory does) ----
+    // ---- DB write ----
     const payload = {
       donor_id: Number(donorId),
       location_id: Number(location_id),
@@ -97,6 +134,10 @@ router.post("/create", async (req, res) => {
     const result = await addDonation(payload);
 
     if (result) {
+      // Invalidate caches for this donor & global list
+      await invalidateHistoryForDonor(Number(donorId));
+      await invalidateListsForDonor(Number(donorId));
+
       return res.status(201).json({
         ok: true,
         donation_id: result.summary.donation_id,
@@ -106,37 +147,42 @@ router.post("/create", async (req, res) => {
     }
 
     return res.status(500).json({ ok: false, error: "Insert failed" });
-
   } catch (err) {
-    // Map common Postgres error codes (same as foodcategory)
     if (err.code === "23503") {
       return res.status(400).json({ ok: false, error: "Invalid reference: " + err.detail });
     }
     if (err.code === "23505") {
       return res.status(409).json({ ok: false, error: "Duplicate record." });
     }
-
-    // Generic error
     console.error("POST /donation/create error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// ====================
-// GET /donation/list
-// ====================
-
 router.get("/list", async (req, res) => {
   try {
+    const refresh = String(req.query.refresh || "") === "1";
+
+    if (!refresh) {
+      const hit = await rGet(KEY_DONATION_LIST_ALL);
+      if (hit) {
+        res.set("X-Cache", "HIT");
+        return res.json(JSON.parse(hit));
+      }
+    }
+
     const rows = await getDonations();
-    res.json({ ok: true, items: rows, count: rows.length });
+    const payload = { ok: true, items: rows, count: rows.length };
+
+    try { await rSet(KEY_DONATION_LIST_ALL, JSON.stringify(payload), TTL_LIST_SEC); } catch {}
+    res.set("X-Cache", refresh ? "BYPASS" : "MISS");
+    res.json(payload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// Donation Approval Status Update
 router.post("/approve/:id", async (req, res) => {
   try {
     const { approve_status } = req.body;
@@ -150,37 +196,29 @@ router.post("/approve/:id", async (req, res) => {
       return res.status(400).json({ ok: false, error: `Invalid approve_status: ${approve_status}` });
     }
 
-    let result
-    if (approve_status == "confirmed") {
-      result = await approveDonation(id);
-    }
-    else {
-      result = await cancelDonation(id);
-    }
+    const result = approve_status === "confirmed"
+      ? await approveDonation(id)
+      : await cancelDonation(id);
 
     if (result.rowCount == 0) {
-      return res.status(409).json({ ok: false, error: "No rows updated (already processed or not found)" });
-    }
-    else if (result) {
-      return res.status(201).json({ ok: true, result });
-    }
-    return res.status(500).json({ ok: false, error: "Update failed" });
-
-  } catch (err) {
-    // Map common Postgres error codes
-    if (err.code === "23503") {
-      // Fkey violation
       return res
-        .status(400)
-        .json({ ok: false, error: "Invalid reference: " + err.detail });
+        .status(409)
+        .json({ ok: false, error: "No rows updated (already processed or not found)" });
     }
-    // Generic error
+
+    // Invalidate history and lists for affected donor
+    await invalidateByDonationId(id);
+
+    return res.status(201).json({ ok: true, result });
+  } catch (err) {
+    if (err.code === "23503") {
+      return res.status(400).json({ ok: false, error: "Invalid reference: " + err.detail });
+    }
     console.error("DB error:", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// Cancel donation
 router.post("/cancel/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -188,54 +226,73 @@ router.post("/cancel/:id", async (req, res) => {
       return res.status(400).json({ ok: false, error: `Invalid id: ${id}` });
     }
 
-    const sql = `
-      UPDATE donations
-      SET approve_status = 'cancelled'
-      WHERE donation_id = $1 AND approve_status = 'pending'
-      RETURNING donation_id, approve_status;
-    `;
-    const { rows, rowCount } = await pgPool.query(sql, [id]);
+    // Use the DB function wrapper instead of inline SQL
+    const { rowCount, rows } = await cancelDonation(id);
 
     if (rowCount === 0) {
-      return res.status(409).json({ ok: false, error: "Only pending donations can be cancelled or donation not found." });
+      return res.status(409).json({
+        ok: false,
+        error: "Only pending donations can be cancelled or donation not found."
+      });
     }
 
-    return res.json({ ok: true, donation: rows[0], message: "Donation cancelled successfully." });
+    // Invalidate history and lists for affected donor
+    await invalidateByDonationId(id);
+
+    return res.json({
+      ok: true,
+      donation: rows[0], // whatever donation_cancel($1) returns
+      message: "Donation cancelled successfully."
+    });
   } catch (err) {
     console.error("POST /donation/cancel error:", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// List donations by account ID
+
+// ====================
+// GET /donation/list/:id  (by account)  (CACHED)
+// ====================
 router.get("/list/:id", async (req, res) => {
   try {
-    //need to add auth logic here later
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
-      // surface a clear 400-style error to the caller
       const e = new Error(`Invalid id: ${id}`);
       e.status = 400;
       throw e;
     }
-    const rows = await getDonationsByAccount(id);
 
-    //no result
+    const refresh = String(req.query.refresh || "") === "1";
+    const key = keyDonationListByAccount(id);
+
+    if (!refresh) {
+      const hit = await rGet(key);
+      if (hit) {
+        res.set("X-Cache", "HIT");
+        return res.json(JSON.parse(hit));
+      }
+    }
+
+    const rows = await getDonationsByAccount(id);
     if (rows.length === 0) {
       return res.status(404).json({ ok: false, error: "Not found" });
     }
 
-    //have result
-    res.json({ ok: true, item: rows[0] });
+    const payload = { ok: true, item: rows[0] };
 
-    //some error
+    try { await rSet(key, JSON.stringify(payload), TTL_LIST_SEC); } catch {}
+    res.set("X-Cache", refresh ? "BYPASS" : "MISS");
+    res.json(payload);
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok: false, error: err.message });
   }
-})
+});
 
-// History of donations by donor_id
+// ====================
+// GET /donation/history/:donor_id (CACHED)
+// ====================
 router.get("/history/:donor_id", async (req, res) => {
   try {
     const donor_id = Number(req.params.donor_id);
@@ -244,17 +301,58 @@ router.get("/history/:donor_id", async (req, res) => {
       e.status = 400;
       throw e;
     }
+
+    const cacheKey = keyDonationHistory(donor_id);
+
+    // 0) Try Redis first
+    const hit = await rGet(cacheKey);
+    if (hit) {
+      res.set("X-Cache", "HIT");
+      return res.json(JSON.parse(hit));
+    }
+
+    // 1) Source of truth: PG rows (item-per-row)
     const rows = await getDonationHistory(donor_id);
 
-    //no result
-    if (rows.length === 0) {
+    // 2) Upsert into Mongo (one doc per donation)
+    await upsertDonationHistory(donor_id, rows);
+
+    // 3) Read from Mongo
+    const docs = await listDonationHistoryFromMongo(donor_id);
+
+    // 4) Flatten docs back to PG-like rows that your React expects
+    const flat = [];
+    for (const d of docs) {
+      for (const it of d.items || []) {
+        flat.push({
+          donation_id: d.donation_id,
+          food_name: it.food_name,
+          category: it.category,
+          qty: it.qty,
+          unit: it.unit,
+          expiry_date: it.expiry_date,
+          location_name: d.location_name,
+          donated_at: d.donated_at,
+          approve_status: d.approve_status
+        });
+      }
+    }
+
+    if (flat.length === 0) {
       return res.status(404).json({ ok: false, error: "Not found" });
     }
 
-    res.json({ ok: true, items: rows });
+    const payload = { ok: true, items: flat };
+
+    // 5) Store in Redis (best-effort)
+    try { await rSet(cacheKey, JSON.stringify(payload), TTL_DONATION_HISTORY_SEC); } catch {}
+
+    res.set("X-Cache", "MISS");
+    return res.json(payload);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false, error: err.message });
+    console.error("GET /donation/history error:", err);
+    const status = err.status || 500;
+    res.status(status).json({ ok: false, error: err.message });
   }
 });
 

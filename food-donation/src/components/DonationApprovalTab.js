@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import UseFetchData from '../hooks/useFetchData';
-import { DonationAPI } from '../services/api';
+import { DonationAPI, AdminAPI } from '../services/api';
 
 export default function DonationApprovalTab() {
   const [tick, setTick] = useState(0);
@@ -36,6 +36,7 @@ export default function DonationApprovalTab() {
       const grouped = groupFoods(foods);
       return {
         donation_id:    x?.donation_id ?? null,
+        donor_name:     x?.donor_name ?? '',
         name:           x?.name ?? '',
         address:        x?.address ?? '',
         donor_id:       x?.donor_id ?? null,
@@ -72,11 +73,11 @@ export default function DonationApprovalTab() {
     if (!OPTIONS.includes(next)) { alert('Invalid status.'); return; }
     const prev = effectiveRows.find(x => x.donation_id === donation_id)?.approve_status ?? 'pending';
 
-    // optimistic
+
     setLocalMap(m => new Map(m).set(donation_id, next));
 
     try {
-      const res = await DonationAPI.approve(donation_id, next); // ✅ using approve()
+      const res = await AdminAPI.approveDonation(donation_id, next);
       const ok = (res?.data?.ok ?? res?.ok ?? false);
       if (!ok) throw new Error('Approval update failed');
 
@@ -99,6 +100,7 @@ export default function DonationApprovalTab() {
     return (
       <tr>
         <td><strong>#{r.donation_id}</strong></td>
+        <td>{r.donor_name || '—'}</td>
         <td>
           <div className="fw-semibold">{r.name || '—'}</div>
           <div className="text-muted small">{r.address || '—'}</div>
@@ -109,10 +111,10 @@ export default function DonationApprovalTab() {
             <ul className="mb-0 ps-3">
               {r.food_items.map((f, i) => (
                 <li
-                  // ✅ unique even for duplicated names/ids
+                  // unique even for duplicated names/ids
                   key={`${r.donation_id}-${f.food_item_id ?? 'nm'}-${i}`}
                 >
-                  {f.name || '—'} × {Number.isFinite(f.qty) ? f.qty : 0}
+                  {f.name || '—'} x {Number.isFinite(f.qty) ? f.qty : 0}
                 </li>
               ))}
             </ul>
@@ -146,6 +148,7 @@ export default function DonationApprovalTab() {
               <thead>
                 <tr>
                   <th style={{width: 90}}>ID</th>
+                  <th>Donor Name</th>
                   <th>Location</th>
                   <th>Location ID</th>
                   <th>Food Items (name × qty)</th>
@@ -170,6 +173,7 @@ export default function DonationApprovalTab() {
               <thead>
                 <tr>
                   <th style={{width: 90}}>ID</th>
+                  <th>Donor Name</th>
                   <th>Location</th>
                   <th>Location ID</th>
                   <th>Food Items (name × qty)</th>
